@@ -1,12 +1,23 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PostCard, PostCardSkeleton } from "@/components/post-card";
 import { PostComposer } from "@/components/post-composer";
 import { TopBar } from "@/components/top-bar";
 import { LeaderboardTable, LeaderboardTableSkeleton } from "@/components/leaderboard-table";
 import { EventCard, EventCardSkeleton } from "@/components/event-card";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/auth-utils";
 import type { PostWithAuthor, MemberWithProfile, EventWithDetails } from "@shared/schema";
@@ -25,7 +36,10 @@ interface PaginatedResponse<T> {
 export default function FeedPage() {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
+  const [editingPost, setEditingPost] = useState<PostWithAuthor | null>(null);
+  const [deletingPost, setDeletingPost] = useState<PostWithAuthor | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const { data: postsResponse, isLoading: postsLoading } = useQuery<PaginatedResponse<PostWithAuthor>>({
     queryKey: ["/api/posts"],
@@ -76,6 +90,58 @@ export default function FeedPage() {
     },
   });
 
+  const updatePostMutation = useMutation({
+    mutationFn: async ({ postId, data }: { postId: string; data: { title?: string; content: string; category: string } }) => {
+      return apiRequest("PATCH", `/api/posts/${postId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
+      setEditingPost(null);
+      toast({ title: "Success", description: "Post updated successfully" });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({ title: "Unauthorized", description: "Please log in again", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      toast({ title: "Error", description: "Failed to update post", variant: "destructive" });
+    },
+  });
+
+  const deletePostMutation = useMutation({
+    mutationFn: async (postId: string) => {
+      return apiRequest("DELETE", `/api/posts/${postId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
+      setDeletingPost(null);
+      toast({ title: "Success", description: "Post deleted successfully" });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({ title: "Unauthorized", description: "Please log in again", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      toast({ title: "Error", description: "Failed to delete post", variant: "destructive" });
+    },
+  });
+
+  const handleEditPost = (post: PostWithAuthor) => {
+    setEditingPost(post);
+  };
+
+  const handleDeletePost = (post: PostWithAuthor) => {
+    setDeletingPost(post);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deletingPost) {
+      deletePostMutation.mutate(deletingPost.id);
+    }
+  };
+
   const filteredPosts = posts?.filter((post) => {
     if (activeTab === "all") return true;
     if (activeTab === "announcements") return post.category === "announcement";
@@ -115,7 +181,10 @@ export default function FeedPage() {
                     <PostCard
                       key={post.id}
                       post={post}
+                      currentUserId={user?.id}
                       onLike={(postId) => likePostMutation.mutate(postId)}
+                      onEdit={handleEditPost}
+                      onDelete={handleDeletePost}
                       isLiking={likePostMutation.isPending}
                     />
                   ))
@@ -171,6 +240,46 @@ export default function FeedPage() {
         onSubmit={(values) => createPostMutation.mutate(values)}
         isPending={createPostMutation.isPending}
       />
+
+      {/* Edit Post Dialog */}
+      <PostComposer
+        open={!!editingPost}
+        onOpenChange={(open) => !open && setEditingPost(null)}
+        onSubmit={(values) => {
+          if (editingPost) {
+            updatePostMutation.mutate({ postId: editingPost.id, data: values });
+          }
+        }}
+        isPending={updatePostMutation.isPending}
+        editMode={true}
+        initialData={editingPost ? {
+          title: editingPost.title || undefined,
+          content: editingPost.content,
+          category: editingPost.category as "discussion" | "announcement" | "question",
+        } : undefined}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingPost} onOpenChange={(open) => !open && setDeletingPost(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Post?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this post? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-post"
+            >
+              {deletePostMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -26,24 +26,18 @@ This document tracks the remaining tasks to make the Skool Clone fully functiona
 - Frontend: Created Lesson Viewer page (`/classroom/:courseId/lesson/:lessonId`) with video support
 - Frontend: Created Course Editor dialog for instructors to manage courses, modules, and lessons
 
+### Task 4: Post & Comment Improvements ✅
+- Backend: Added Comment UPDATE endpoint (`PATCH /api/comments/:id`)
+- Backend: Added comment threading support with `replyCount` and `GET /api/comments/:id/replies`
+- Backend: Added parent comment validation when creating replies
+- Frontend: Wired post Edit/Delete buttons with confirmation dialogs
+- Frontend: Added edit mode to PostComposer for updating posts
+- Frontend: Implemented expandable Comments section in Feed
+- Frontend: Added threaded comment replies with nested UI and reply forms
+
 ---
 
 ## Remaining Tasks
-
-### TASK 4: Post & Comment Improvements (High Priority)
-**Status:** Not Started
-**Priority:** High
-**Missing:** Edit/delete posts, comment UI, threaded comments
-
-| Subtask | Type | Description | Status |
-|---------|------|-------------|--------|
-| 4.1 | Backend | Add Comment UPDATE endpoint (PATCH `/api/comments/:id`) | ⬜ |
-| 4.2 | Backend | Add comment threading support (fetch nested replies) | ⬜ |
-| 4.3 | Frontend | Wire post Edit/Delete buttons with confirmation dialogs | ⬜ |
-| 4.4 | Frontend | Implement Comments section in Feed (expand/collapse) | ⬜ |
-| 4.5 | Frontend | Add threaded comment replies UI | ⬜ |
-
----
 
 ### TASK 5: Event Management Completion (High Priority)
 **Status:** Not Started
@@ -137,11 +131,12 @@ This document tracks the remaining tasks to make the Skool Clone fully functiona
 | Priority | Tasks | Subtasks | Status |
 |----------|-------|----------|--------|
 | **Critical** | Task 3 (Course/Lesson System) | 6 | ✅ Completed |
-| **High** | Tasks 4, 5, 6 (Posts, Events, Profile) | 13 | Not Started |
+| **High** | Task 4 (Posts/Comments) | 5 | ✅ Completed |
+| **High** | Tasks 5, 6 (Events, Profile) | 8 | Not Started |
 | **Medium** | Tasks 7, 8 (UI/UX, Search) | 10 | Not Started |
 | **Lower** | Tasks 9, 10 (Enrollment, Admin) | 9 | Not Started |
 
-**Total Remaining:** 32 subtasks across 7 tasks
+**Total Remaining:** 27 subtasks across 6 tasks
 
 ---
 

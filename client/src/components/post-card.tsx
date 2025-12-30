@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Heart, MessageCircle, Share2, MoreHorizontal, Pin } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -9,18 +10,30 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { CommentSection } from "@/components/comment-section";
 import type { PostWithAuthor } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
 
 interface PostCardProps {
   post: PostWithAuthor;
+  currentUserId?: string;
   onLike?: (postId: string) => void;
   onComment?: (postId: string) => void;
   onShare?: (postId: string) => void;
+  onEdit?: (post: PostWithAuthor) => void;
+  onDelete?: (post: PostWithAuthor) => void;
   isLiking?: boolean;
 }
 
-export function PostCard({ post, onLike, onComment, onShare, isLiking }: PostCardProps) {
+export function PostCard({ post, currentUserId, onLike, onComment, onShare, onEdit, onDelete, isLiking }: PostCardProps) {
+  const [showComments, setShowComments] = useState(false);
+  const isAuthor = currentUserId && post.author.id === currentUserId;
+
+  const handleCommentClick = () => {
+    setShowComments(!showComments);
+    onComment?.(post.id);
+  };
+
   const getInitials = () => {
     const first = post.author.firstName?.[0] || "";
     const last = post.author.lastName?.[0] || "";
@@ -75,17 +88,30 @@ export function PostCard({ post, onLike, onComment, onShare, isLiking }: PostCar
             </span>
           </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" data-testid={`button-post-menu-${post.id}`}>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem>Edit</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {isAuthor && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" data-testid={`button-post-menu-${post.id}`}>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => onEdit?.(post)}
+                data-testid={`button-edit-post-${post.id}`}
+              >
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => onDelete?.(post)}
+                data-testid={`button-delete-post-${post.id}`}
+              >
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </CardHeader>
       <CardContent className="pb-3">
         {post.title && (
@@ -112,11 +138,11 @@ export function PostCard({ post, onLike, onComment, onShare, isLiking }: PostCar
         <Button
           variant="ghost"
           size="sm"
-          className="gap-1.5"
-          onClick={() => onComment?.(post.id)}
+          className={`gap-1.5 ${showComments ? "text-primary" : ""}`}
+          onClick={handleCommentClick}
           data-testid={`button-comment-${post.id}`}
         >
-          <MessageCircle className="h-4 w-4" />
+          <MessageCircle className={`h-4 w-4 ${showComments ? "fill-current" : ""}`} />
           <span>{post.commentsCount}</span>
         </Button>
         <Button
@@ -128,6 +154,13 @@ export function PostCard({ post, onLike, onComment, onShare, isLiking }: PostCar
           <Share2 className="h-4 w-4" />
         </Button>
       </CardFooter>
+
+      {/* Expandable Comments Section */}
+      {showComments && (
+        <CardContent className="pt-0">
+          <CommentSection postId={post.id} />
+        </CardContent>
+      )}
     </Card>
   );
 }

@@ -1,5 +1,5 @@
-import { 
-  users, profiles, posts, postLikes, comments, 
+import {
+  users, profiles, posts, postLikes, comments,
   courses, courseModules, lessons, enrollments, lessonProgress,
   events, eventAttendees,
   type Profile, type InsertProfile,
@@ -13,12 +13,12 @@ import {
   type LessonProgress, type InsertLessonProgress,
   type Event, type InsertEvent,
   type EventAttendee, type InsertEventAttendee,
-  type PostWithAuthor, type CommentWithAuthor, type CourseWithDetails,
+  type PostWithAuthor, type CommentWithAuthor, type CommentWithReplyCount, type CourseWithDetails,
   type MemberWithProfile, type EventWithDetails,
 } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import { db } from "./db";
-import { eq, desc, sql, and, gte, count } from "drizzle-orm";
+import { eq, desc, sql, and, gte, count, isNull } from "drizzle-orm";
 
 // Pagination options
 export interface PaginationOptions {
@@ -49,9 +49,12 @@ export interface IStorage {
   toggleLike(postId: string, userId: string): Promise<boolean>;
 
   // Comments
-  getComments(postId: string): Promise<CommentWithAuthor[]>;
+  getComments(postId: string): Promise<CommentWithReplyCount[]>;
+  getCommentReplies(parentId: string): Promise<CommentWithReplyCount[]>;
   getComment(id: string): Promise<Comment | undefined>;
+  getCommentWithAuthor(id: string): Promise<CommentWithAuthor | undefined>;
   createComment(data: InsertComment): Promise<Comment>;
+  updateComment(id: string, data: { content: string }): Promise<Comment | undefined>;
   deleteComment(id: string): Promise<boolean>;
 
   // Courses
@@ -323,7 +326,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Comments
-  async getComments(postId: string): Promise<CommentWithAuthor[]> {
+  async getComments(postId: string): Promise<CommentWithReplyCount[]> {
+    // Get only top-level comments (where parentId is null)
     const result = await db
       .select({
         comment: comments,
@@ -336,13 +340,61 @@ export class DatabaseStorage implements IStorage {
       })
       .from(comments)
       .leftJoin(users, eq(comments.authorId, users.id))
-      .where(eq(comments.postId, postId))
+      .where(and(eq(comments.postId, postId), isNull(comments.parentId)))
       .orderBy(comments.createdAt);
 
-    return result.map((r) => ({
-      ...r.comment,
-      author: r.author!,
-    }));
+    // Get reply counts for each comment
+    const commentsWithReplyCounts = await Promise.all(
+      result.map(async (r) => {
+        const [replyCountResult] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(comments)
+          .where(eq(comments.parentId, r.comment.id));
+
+        return {
+          ...r.comment,
+          author: r.author!,
+          replyCount: Number(replyCountResult?.count || 0),
+        };
+      })
+    );
+
+    return commentsWithReplyCounts;
+  }
+
+  async getCommentReplies(parentId: string): Promise<CommentWithReplyCount[]> {
+    const result = await db
+      .select({
+        comment: comments,
+        author: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+        },
+      })
+      .from(comments)
+      .leftJoin(users, eq(comments.authorId, users.id))
+      .where(eq(comments.parentId, parentId))
+      .orderBy(comments.createdAt);
+
+    // Get reply counts for each reply (for nested threading support)
+    const repliesWithCounts = await Promise.all(
+      result.map(async (r) => {
+        const [replyCountResult] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(comments)
+          .where(eq(comments.parentId, r.comment.id));
+
+        return {
+          ...r.comment,
+          author: r.author!,
+          replyCount: Number(replyCountResult?.count || 0),
+        };
+      })
+    );
+
+    return repliesWithCounts;
   }
 
   async createComment(data: InsertComment): Promise<Comment> {
@@ -354,6 +406,34 @@ export class DatabaseStorage implements IStorage {
 
   async getComment(id: string): Promise<Comment | undefined> {
     const [comment] = await db.select().from(comments).where(eq(comments.id, id));
+    return comment;
+  }
+
+  async getCommentWithAuthor(id: string): Promise<CommentWithAuthor | undefined> {
+    const [result] = await db
+      .select({
+        comment: comments,
+        author: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+        },
+      })
+      .from(comments)
+      .leftJoin(users, eq(comments.authorId, users.id))
+      .where(eq(comments.id, id));
+
+    if (!result) return undefined;
+
+    return {
+      ...result.comment,
+      author: result.author!,
+    };
+  }
+
+  async updateComment(id: string, data: { content: string }): Promise<Comment | undefined> {
+    const [comment] = await db.update(comments).set(data).where(eq(comments.id, id)).returning();
     return comment;
   }
 

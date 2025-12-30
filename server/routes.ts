@@ -42,6 +42,10 @@ const updateModuleSchema = z.object({
   orderIndex: z.number().min(0).optional(),
 });
 
+const updateCommentSchema = z.object({
+  content: z.string().min(1, "Content cannot be empty"),
+});
+
 const rsvpStatusSchema = z.enum(["going", "maybe", "not_going"]);
 
 // Pagination schema
@@ -209,6 +213,18 @@ export async function registerRoutes(
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
+      // Validate parentId if provided
+      if (req.body.parentId) {
+        const parentComment = await storage.getComment(req.body.parentId);
+        if (!parentComment) {
+          return res.status(400).json({ message: "Parent comment not found" });
+        }
+        // Ensure parent comment belongs to the same post
+        if (parentComment.postId !== req.params.postId) {
+          return res.status(400).json({ message: "Parent comment does not belong to this post" });
+        }
+      }
+
       const data = insertCommentSchema.parse({
         ...req.body,
         postId: req.params.postId,
@@ -223,6 +239,35 @@ export async function registerRoutes(
       }
       console.error("Error creating comment:", error);
       res.status(500).json({ message: "Failed to create comment" });
+    }
+  });
+
+  app.patch("/api/comments/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      // Check ownership
+      const comment = await storage.getComment(req.params.id);
+      if (!comment) {
+        return res.status(404).json({ message: "Comment not found" });
+      }
+      if (comment.authorId !== userId) {
+        return res.status(403).json({ message: "You can only edit your own comments" });
+      }
+
+      const data = updateCommentSchema.parse(req.body);
+      await storage.updateComment(req.params.id, data);
+
+      // Return updated comment with author info
+      const updatedComment = await storage.getCommentWithAuthor(req.params.id);
+      res.json(updatedComment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error updating comment:", error);
+      res.status(500).json({ message: "Failed to update comment" });
     }
   });
 
@@ -245,6 +290,23 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting comment:", error);
       res.status(500).json({ message: "Failed to delete comment" });
+    }
+  });
+
+  // Get replies to a specific comment
+  app.get("/api/comments/:id/replies", async (req, res) => {
+    try {
+      // Verify parent comment exists
+      const parentComment = await storage.getComment(req.params.id);
+      if (!parentComment) {
+        return res.status(404).json({ message: "Comment not found" });
+      }
+
+      const replies = await storage.getCommentReplies(req.params.id);
+      res.json(replies);
+    } catch (error) {
+      console.error("Error fetching comment replies:", error);
+      res.status(500).json({ message: "Failed to fetch comment replies" });
     }
   });
 

@@ -89,3 +89,24 @@ All notable changes to this project will be documented in this file.
   - Course outline sidebar with progress indicators
   - Full CRUD for courses, modules, and lessons
   - Drag-to-reorder (via up/down buttons) for modules and lessons
+
+### 2024-12-30 - Task 4: Post & Comment Improvements
+- Implemented complete post and comment management
+- Backend changes:
+  - `PATCH /api/comments/:id` - update comment content (author only)
+  - `GET /api/comments/:id/replies` - fetch threaded replies
+  - Updated `getComments` to include `replyCount` for each comment
+  - Added parent comment validation when creating replies
+- Frontend changes:
+  - Updated `client/src/components/post-card.tsx` - Edit/Delete dropdown for post authors
+  - Updated `client/src/components/post-composer.tsx` - Added edit mode with pre-filled form
+  - Updated `client/src/components/comment-section.tsx` - Complete rewrite with threading
+  - Updated `client/src/pages/feed.tsx` - Post edit/delete mutations with confirmation dialog
+- Features:
+  - Post edit/delete with AlertDialog confirmation
+  - Expandable comment section on each post
+  - Add new comments with author avatar
+  - Edit/delete own comments
+  - Threaded replies with visual indentation
+  - "View X replies" expandable for nested comments
+  - Reply form inline below comments

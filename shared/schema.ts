@@ -303,6 +303,10 @@ export type CommentWithAuthor = Comment & {
   author: { id: string; firstName: string | null; lastName: string | null; profileImageUrl: string | null };
 };
 
+export type CommentWithReplyCount = CommentWithAuthor & {
+  replyCount: number;
+};
+
 export type CourseWithDetails = Course & {
   instructor: { id: string; firstName: string | null; lastName: string | null; profileImageUrl: string | null };
   modulesCount: number;

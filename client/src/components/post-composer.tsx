@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -36,14 +35,23 @@ const postFormSchema = z.object({
 
 type PostFormValues = z.infer<typeof postFormSchema>;
 
+export type { PostFormValues };
+
 interface PostComposerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: PostFormValues) => void;
   isPending?: boolean;
+  // Edit mode props
+  editMode?: boolean;
+  initialData?: {
+    title?: string;
+    content: string;
+    category: "discussion" | "announcement" | "question";
+  };
 }
 
-export function PostComposer({ open, onOpenChange, onSubmit, isPending }: PostComposerProps) {
+export function PostComposer({ open, onOpenChange, onSubmit, isPending, editMode, initialData }: PostComposerProps) {
   const form = useForm<PostFormValues>({
     resolver: zodResolver(postFormSchema),
     defaultValues: {
@@ -53,16 +61,35 @@ export function PostComposer({ open, onOpenChange, onSubmit, isPending }: PostCo
     },
   });
 
+  // Reset form when dialog opens with initial data (for edit mode)
+  useEffect(() => {
+    if (open && initialData) {
+      form.reset({
+        title: initialData.title || "",
+        content: initialData.content,
+        category: initialData.category,
+      });
+    } else if (open && !editMode) {
+      form.reset({
+        title: "",
+        content: "",
+        category: "discussion",
+      });
+    }
+  }, [open, initialData, editMode, form]);
+
   const handleSubmit = (values: PostFormValues) => {
     onSubmit(values);
-    form.reset();
+    if (!editMode) {
+      form.reset();
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create Post</DialogTitle>
+          <DialogTitle>{editMode ? "Edit Post" : "Create Post"}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -132,12 +159,12 @@ export function PostComposer({ open, onOpenChange, onSubmit, isPending }: PostCo
               >
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={isPending}
                 data-testid="button-submit-post"
               >
-                {isPending ? "Posting..." : "Post"}
+                {isPending ? (editMode ? "Saving..." : "Posting...") : (editMode ? "Save Changes" : "Post")}
               </Button>
             </div>
           </form>
