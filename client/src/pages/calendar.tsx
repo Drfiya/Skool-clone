@@ -12,15 +12,27 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/auth-utils";
 import type { EventWithDetails } from "@shared/schema";
 
+// Paginated response type
+interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+}
+
 export default function CalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
 
-  const { data: events, isLoading } = useQuery<EventWithDetails[]>({
+  const { data: eventsResponse, isLoading } = useQuery<PaginatedResponse<EventWithDetails>>({
     queryKey: ["/api/events"],
   });
+  const events = eventsResponse?.data;
 
   const rsvpMutation = useMutation({
     mutationFn: async ({ eventId, status }: { eventId: string; status: string }) => {

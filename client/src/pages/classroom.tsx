@@ -12,15 +12,27 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/auth-utils";
 import type { CourseWithDetails } from "@shared/schema";
 
+// Paginated response type
+interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+}
+
 export default function ClassroomPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
   const { isAuthenticated } = useAuth();
 
-  const { data: courses, isLoading } = useQuery<CourseWithDetails[]>({
+  const { data: coursesResponse, isLoading } = useQuery<PaginatedResponse<CourseWithDetails>>({
     queryKey: ["/api/courses"],
   });
+  const courses = coursesResponse?.data;
 
   const { data: enrolledCourseIds } = useQuery<string[]>({
     queryKey: ["/api/enrollments/my"],

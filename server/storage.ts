@@ -18,7 +18,19 @@ import {
 } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import { db } from "./db";
-import { eq, desc, sql, and, gte } from "drizzle-orm";
+import { eq, desc, sql, and, gte, count } from "drizzle-orm";
+
+// Pagination options
+export interface PaginationOptions {
+  limit?: number;
+  offset?: number;
+}
+
+// Paginated result
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+}
 
 export interface IStorage {
   // Profiles
@@ -26,7 +38,7 @@ export interface IStorage {
   createOrUpdateProfile(data: InsertProfile): Promise<Profile>;
 
   // Posts
-  getPosts(userId?: string): Promise<PostWithAuthor[]>;
+  getPosts(userId?: string, pagination?: PaginationOptions): Promise<PaginatedResult<PostWithAuthor>>;
   getPostsByAuthor(authorId: string, userId?: string): Promise<PostWithAuthor[]>;
   getPost(id: string, userId?: string): Promise<PostWithAuthor | undefined>;
   createPost(data: InsertPost): Promise<Post>;
@@ -35,39 +47,46 @@ export interface IStorage {
 
   // Post Likes
   toggleLike(postId: string, userId: string): Promise<boolean>;
-  
+
   // Comments
   getComments(postId: string): Promise<CommentWithAuthor[]>;
+  getComment(id: string): Promise<Comment | undefined>;
   createComment(data: InsertComment): Promise<Comment>;
+  deleteComment(id: string): Promise<boolean>;
 
   // Courses
-  getCourses(userId?: string): Promise<CourseWithDetails[]>;
+  getCourses(userId?: string, pagination?: PaginationOptions): Promise<PaginatedResult<CourseWithDetails>>;
   getCourse(id: string, userId?: string): Promise<CourseWithDetails | undefined>;
   createCourse(data: InsertCourse): Promise<Course>;
-  
+  updateCourse(id: string, data: Partial<InsertCourse>): Promise<Course | undefined>;
+  deleteCourse(id: string): Promise<boolean>;
+
   // Enrollments
   getEnrollments(userId: string): Promise<string[]>;
   createEnrollment(data: InsertEnrollment): Promise<Enrollment>;
 
   // Course Modules and Lessons
   getModulesWithLessons(courseId: string): Promise<(CourseModule & { lessons: Lesson[] })[]>;
-  
+
   // Lesson Progress
   updateLessonProgress(userId: string, lessonId: string, isCompleted: boolean): Promise<LessonProgress>;
 
   // Events
-  getEvents(userId?: string): Promise<EventWithDetails[]>;
+  getEvents(userId?: string, pagination?: PaginationOptions): Promise<PaginatedResult<EventWithDetails>>;
+  getEvent(id: string, userId?: string): Promise<EventWithDetails | undefined>;
   getUpcomingEvents(userId?: string, limit?: number): Promise<EventWithDetails[]>;
   createEvent(data: InsertEvent): Promise<Event>;
-  
+  updateEvent(id: string, data: Partial<InsertEvent>): Promise<Event | undefined>;
+  deleteEvent(id: string): Promise<boolean>;
+
   // Event RSVP
   updateRsvp(eventId: string, userId: string, status: string): Promise<EventAttendee>;
 
   // Members
-  getMembers(): Promise<MemberWithProfile[]>;
+  getMembers(pagination?: PaginationOptions): Promise<PaginatedResult<MemberWithProfile>>;
   getMember(id: string): Promise<MemberWithProfile | undefined>;
   getLeaderboard(limit?: number): Promise<MemberWithProfile[]>;
-  
+
   // Points
   addPoints(userId: string, points: number): Promise<void>;
 }
@@ -92,7 +111,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Posts
-  async getPosts(userId?: string): Promise<PostWithAuthor[]> {
+  async getPosts(userId?: string, pagination?: PaginationOptions): Promise<PaginatedResult<PostWithAuthor>> {
+    const limit = pagination?.limit ?? 20;
+    const offset = pagination?.offset ?? 0;
+
+    // Get total count
+    const [totalResult] = await db.select({ count: count() }).from(posts);
+    const total = Number(totalResult?.count || 0);
+
     const result = await db
       .select({
         post: posts,
@@ -105,7 +131,9 @@ export class DatabaseStorage implements IStorage {
       })
       .from(posts)
       .leftJoin(users, eq(posts.authorId, users.id))
-      .orderBy(desc(posts.isPinned), desc(posts.createdAt));
+      .orderBy(desc(posts.isPinned), desc(posts.createdAt))
+      .limit(limit)
+      .offset(offset);
 
     const postsWithCounts = await Promise.all(
       result.map(async (r) => {
@@ -113,7 +141,7 @@ export class DatabaseStorage implements IStorage {
           .select({ count: sql<number>`count(*)` })
           .from(postLikes)
           .where(eq(postLikes.postId, r.post.id));
-        
+
         const [commentsResult] = await db
           .select({ count: sql<number>`count(*)` })
           .from(comments)
@@ -138,7 +166,7 @@ export class DatabaseStorage implements IStorage {
       })
     );
 
-    return postsWithCounts;
+    return { data: postsWithCounts, total };
   }
 
   async getPostsByAuthor(authorId: string, userId?: string): Promise<PostWithAuthor[]> {
@@ -304,8 +332,25 @@ export class DatabaseStorage implements IStorage {
     return comment;
   }
 
+  async getComment(id: string): Promise<Comment | undefined> {
+    const [comment] = await db.select().from(comments).where(eq(comments.id, id));
+    return comment;
+  }
+
+  async deleteComment(id: string): Promise<boolean> {
+    await db.delete(comments).where(eq(comments.id, id));
+    return true;
+  }
+
   // Courses
-  async getCourses(userId?: string): Promise<CourseWithDetails[]> {
+  async getCourses(userId?: string, pagination?: PaginationOptions): Promise<PaginatedResult<CourseWithDetails>> {
+    const limit = pagination?.limit ?? 20;
+    const offset = pagination?.offset ?? 0;
+
+    // Get total count
+    const [totalResult] = await db.select({ count: count() }).from(courses).where(eq(courses.isPublished, true));
+    const total = Number(totalResult?.count || 0);
+
     const result = await db
       .select({
         course: courses,
@@ -319,7 +364,9 @@ export class DatabaseStorage implements IStorage {
       .from(courses)
       .leftJoin(users, eq(courses.instructorId, users.id))
       .where(eq(courses.isPublished, true))
-      .orderBy(desc(courses.createdAt));
+      .orderBy(desc(courses.createdAt))
+      .limit(limit)
+      .offset(offset);
 
     const coursesWithDetails = await Promise.all(
       result.map(async (r) => {
@@ -348,7 +395,7 @@ export class DatabaseStorage implements IStorage {
             .select()
             .from(enrollments)
             .where(and(eq(enrollments.courseId, r.course.id), eq(enrollments.userId, userId)));
-          
+
           if (enrollment && lessonsCount > 0) {
             let completedLessons = 0;
             for (const mod of modulesList) {
@@ -356,7 +403,7 @@ export class DatabaseStorage implements IStorage {
                 .select()
                 .from(lessons)
                 .where(eq(lessons.moduleId, mod.id));
-              
+
               for (const lesson of lessonsList) {
                 const [prog] = await db
                   .select()
@@ -384,7 +431,7 @@ export class DatabaseStorage implements IStorage {
       })
     );
 
-    return coursesWithDetails;
+    return { data: coursesWithDetails, total };
   }
 
   async getCourse(id: string, userId?: string): Promise<CourseWithDetails | undefined> {
@@ -435,6 +482,16 @@ export class DatabaseStorage implements IStorage {
   async createCourse(data: InsertCourse): Promise<Course> {
     const [course] = await db.insert(courses).values(data).returning();
     return course;
+  }
+
+  async updateCourse(id: string, data: Partial<InsertCourse>): Promise<Course | undefined> {
+    const [course] = await db.update(courses).set(data).where(eq(courses.id, id)).returning();
+    return course;
+  }
+
+  async deleteCourse(id: string): Promise<boolean> {
+    await db.delete(courses).where(eq(courses.id, id));
+    return true;
   }
 
   // Enrollments
@@ -501,7 +558,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Events
-  async getEvents(userId?: string): Promise<EventWithDetails[]> {
+  async getEvents(userId?: string, pagination?: PaginationOptions): Promise<PaginatedResult<EventWithDetails>> {
+    const limit = pagination?.limit ?? 20;
+    const offset = pagination?.offset ?? 0;
+
+    // Get total count
+    const [totalResult] = await db.select({ count: count() }).from(events);
+    const total = Number(totalResult?.count || 0);
+
     const result = await db
       .select({
         event: events,
@@ -514,7 +578,9 @@ export class DatabaseStorage implements IStorage {
       })
       .from(events)
       .leftJoin(users, eq(events.createdBy, users.id))
-      .orderBy(events.startTime);
+      .orderBy(events.startTime)
+      .limit(limit)
+      .offset(offset);
 
     const eventsWithDetails = await Promise.all(
       result.map(async (r) => {
@@ -545,7 +611,7 @@ export class DatabaseStorage implements IStorage {
       })
     );
 
-    return eventsWithDetails;
+    return { data: eventsWithDetails, total };
   }
 
   async getUpcomingEvents(userId?: string, limit = 5): Promise<EventWithDetails[]> {
@@ -603,6 +669,59 @@ export class DatabaseStorage implements IStorage {
     return event;
   }
 
+  async getEvent(id: string, userId?: string): Promise<EventWithDetails | undefined> {
+    const [result] = await db
+      .select({
+        event: events,
+        creator: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+        },
+      })
+      .from(events)
+      .leftJoin(users, eq(events.createdBy, users.id))
+      .where(eq(events.id, id));
+
+    if (!result) return undefined;
+
+    const [attendeesResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(eventAttendees)
+      .where(and(eq(eventAttendees.eventId, id), eq(eventAttendees.status, "going")));
+
+    let isAttending = false;
+    if (userId) {
+      const [userAttending] = await db
+        .select()
+        .from(eventAttendees)
+        .where(and(
+          eq(eventAttendees.eventId, id),
+          eq(eventAttendees.userId, userId),
+          eq(eventAttendees.status, "going")
+        ));
+      isAttending = !!userAttending;
+    }
+
+    return {
+      ...result.event,
+      creator: result.creator!,
+      attendeesCount: Number(attendeesResult?.count || 0),
+      isAttending,
+    };
+  }
+
+  async updateEvent(id: string, data: Partial<InsertEvent>): Promise<Event | undefined> {
+    const [event] = await db.update(events).set(data).where(eq(events.id, id)).returning();
+    return event;
+  }
+
+  async deleteEvent(id: string): Promise<boolean> {
+    await db.delete(events).where(eq(events.id, id));
+    return true;
+  }
+
   // Event RSVP
   async updateRsvp(eventId: string, userId: string, status: string): Promise<EventAttendee> {
     const [existing] = await db
@@ -627,7 +746,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Members
-  async getMembers(): Promise<MemberWithProfile[]> {
+  async getMembers(pagination?: PaginationOptions): Promise<PaginatedResult<MemberWithProfile>> {
+    const limit = pagination?.limit ?? 20;
+    const offset = pagination?.offset ?? 0;
+
+    // Get total count
+    const [totalResult] = await db.select({ count: count() }).from(users);
+    const total = Number(totalResult?.count || 0);
+
     const result = await db
       .select({
         id: users.id,
@@ -636,7 +762,9 @@ export class DatabaseStorage implements IStorage {
         profileImageUrl: users.profileImageUrl,
         email: users.email,
       })
-      .from(users);
+      .from(users)
+      .limit(limit)
+      .offset(offset);
 
     const membersWithProfiles = await Promise.all(
       result.map(async (user) => {
@@ -644,7 +772,7 @@ export class DatabaseStorage implements IStorage {
           .select()
           .from(profiles)
           .where(eq(profiles.userId, user.id));
-        
+
         return {
           ...user,
           profile: profile || null,
@@ -652,7 +780,7 @@ export class DatabaseStorage implements IStorage {
       })
     );
 
-    return membersWithProfiles;
+    return { data: membersWithProfiles, total };
   }
 
   async getMember(id: string): Promise<MemberWithProfile | undefined> {

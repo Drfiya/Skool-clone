@@ -7,13 +7,25 @@ import { MemberCard, MemberCardSkeleton } from "@/components/member-card";
 import { TopBar } from "@/components/top-bar";
 import type { MemberWithProfile } from "@shared/schema";
 
+// Paginated response type
+interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+}
+
 export default function MembersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  const { data: members, isLoading } = useQuery<MemberWithProfile[]>({
+  const { data: membersResponse, isLoading } = useQuery<PaginatedResponse<MemberWithProfile>>({
     queryKey: ["/api/members"],
   });
+  const members = membersResponse?.data;
 
   const filteredMembers = members?.filter((member) => {
     if (!searchQuery) return true;
@@ -32,7 +44,7 @@ export default function MembersPage() {
             <div>
               <h1 className="text-2xl font-bold" data-testid="text-page-title">Members</h1>
               <p className="text-muted-foreground">
-                {members?.length || 0} members in this community
+                {membersResponse?.pagination.total || 0} members in this community
               </p>
             </div>
           </div>

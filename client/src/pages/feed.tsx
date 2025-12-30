@@ -11,14 +11,26 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/auth-utils";
 import type { PostWithAuthor, MemberWithProfile, EventWithDetails } from "@shared/schema";
 
+// Paginated response type
+interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+}
+
 export default function FeedPage() {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const { toast } = useToast();
 
-  const { data: posts, isLoading: postsLoading } = useQuery<PostWithAuthor[]>({
+  const { data: postsResponse, isLoading: postsLoading } = useQuery<PaginatedResponse<PostWithAuthor>>({
     queryKey: ["/api/posts"],
   });
+  const posts = postsResponse?.data;
 
   const { data: leaderboard, isLoading: leaderboardLoading } = useQuery<MemberWithProfile[]>({
     queryKey: ["/api/leaderboard"],
