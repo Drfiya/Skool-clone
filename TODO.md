@@ -35,23 +35,17 @@ This document tracks the remaining tasks to make the Skool Clone fully functiona
 - Frontend: Implemented expandable Comments section in Feed
 - Frontend: Added threaded comment replies with nested UI and reply forms
 
+### Task 5: Event Management Completion ✅
+- Backend: Added `GET /api/events/:id/attendees` endpoint with grouped response
+- Backend: Added RSVP counts (goingCount, maybeCount, notGoingCount) to event responses
+- Frontend: Created Event Editor dialog for create/edit with date pickers
+- Frontend: Created Event Detail page (`/calendar/:id`) with attendee tabs
+- Frontend: Full RSVP states with color-coded buttons (Going/Maybe/Can't Go)
+- Frontend: Made EventCard clickable with "View Details" link
+
 ---
 
 ## Remaining Tasks
-
-### TASK 5: Event Management Completion (High Priority)
-**Status:** Not Started
-**Priority:** High
-**Missing:** Create event dialog, event details, full RSVP states
-
-| Subtask | Type | Description | Status |
-|---------|------|-------------|--------|
-| 5.1 | Backend | Add GET `/api/events/:id/attendees` endpoint | ⬜ |
-| 5.2 | Frontend | Create Event dialog (create/edit) | ⬜ |
-| 5.3 | Frontend | Create Event Detail page with attendee list | ⬜ |
-| 5.4 | Frontend | Show all RSVP states (going/maybe/not_going) in UI | ⬜ |
-
----
 
 ### TASK 6: Profile & Settings (High Priority)
 **Status:** Not Started
@@ -132,11 +126,12 @@ This document tracks the remaining tasks to make the Skool Clone fully functiona
 |----------|-------|----------|--------|
 | **Critical** | Task 3 (Course/Lesson System) | 6 | ✅ Completed |
 | **High** | Task 4 (Posts/Comments) | 5 | ✅ Completed |
-| **High** | Tasks 5, 6 (Events, Profile) | 8 | Not Started |
+| **High** | Task 5 (Events) | 4 | ✅ Completed |
+| **High** | Task 6 (Profile/Settings) | 4 | Not Started |
 | **Medium** | Tasks 7, 8 (UI/UX, Search) | 10 | Not Started |
 | **Lower** | Tasks 9, 10 (Enrollment, Admin) | 9 | Not Started |
 
-**Total Remaining:** 27 subtasks across 6 tasks
+**Total Remaining:** 23 subtasks across 5 tasks
 
 ---
 

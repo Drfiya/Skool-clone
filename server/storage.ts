@@ -14,7 +14,7 @@ import {
   type Event, type InsertEvent,
   type EventAttendee, type InsertEventAttendee,
   type PostWithAuthor, type CommentWithAuthor, type CommentWithReplyCount, type CourseWithDetails,
-  type MemberWithProfile, type EventWithDetails,
+  type MemberWithProfile, type EventWithDetails, type EventAttendeesGrouped,
 } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import { db } from "./db";
@@ -86,6 +86,7 @@ export interface IStorage {
 
   // Event RSVP
   updateRsvp(eventId: string, userId: string, status: string): Promise<EventAttendee>;
+  getEventAttendees(eventId: string): Promise<EventAttendeesGrouped>;
 
   // Members
   getMembers(pagination?: PaginationOptions): Promise<PaginatedResult<MemberWithProfile>>;
@@ -709,7 +710,52 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Events
+  // Events - helper to get RSVP counts and user status
+  private async getEventRsvpDetails(eventId: string, userId?: string) {
+    // Get counts for each status
+    const [goingResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(eventAttendees)
+      .where(and(eq(eventAttendees.eventId, eventId), eq(eventAttendees.status, "going")));
+
+    const [maybeResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(eventAttendees)
+      .where(and(eq(eventAttendees.eventId, eventId), eq(eventAttendees.status, "maybe")));
+
+    const [notGoingResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(eventAttendees)
+      .where(and(eq(eventAttendees.eventId, eventId), eq(eventAttendees.status, "not_going")));
+
+    let userRsvpStatus: "going" | "maybe" | "not_going" | null = null;
+    if (userId) {
+      const [userRsvp] = await db
+        .select()
+        .from(eventAttendees)
+        .where(and(
+          eq(eventAttendees.eventId, eventId),
+          eq(eventAttendees.userId, userId)
+        ));
+      if (userRsvp) {
+        userRsvpStatus = userRsvp.status as "going" | "maybe" | "not_going";
+      }
+    }
+
+    const goingCount = Number(goingResult?.count || 0);
+    const maybeCount = Number(maybeResult?.count || 0);
+    const notGoingCount = Number(notGoingResult?.count || 0);
+
+    return {
+      goingCount,
+      maybeCount,
+      notGoingCount,
+      attendeesCount: goingCount, // For backwards compatibility, attendeesCount = goingCount
+      isAttending: userRsvpStatus === "going",
+      userRsvpStatus,
+    };
+  }
+
   async getEvents(userId?: string, pagination?: PaginationOptions): Promise<PaginatedResult<EventWithDetails>> {
     const limit = pagination?.limit ?? 20;
     const offset = pagination?.offset ?? 0;
@@ -736,29 +782,12 @@ export class DatabaseStorage implements IStorage {
 
     const eventsWithDetails = await Promise.all(
       result.map(async (r) => {
-        const [attendeesResult] = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(eventAttendees)
-          .where(and(eq(eventAttendees.eventId, r.event.id), eq(eventAttendees.status, "going")));
-
-        let isAttending = false;
-        if (userId) {
-          const [userAttending] = await db
-            .select()
-            .from(eventAttendees)
-            .where(and(
-              eq(eventAttendees.eventId, r.event.id),
-              eq(eventAttendees.userId, userId),
-              eq(eventAttendees.status, "going")
-            ));
-          isAttending = !!userAttending;
-        }
+        const rsvpDetails = await this.getEventRsvpDetails(r.event.id, userId);
 
         return {
           ...r.event,
           creator: r.creator!,
-          attendeesCount: Number(attendeesResult?.count || 0),
-          isAttending,
+          ...rsvpDetails,
         };
       })
     );
@@ -786,29 +815,12 @@ export class DatabaseStorage implements IStorage {
 
     const eventsWithDetails = await Promise.all(
       result.map(async (r) => {
-        const [attendeesResult] = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(eventAttendees)
-          .where(and(eq(eventAttendees.eventId, r.event.id), eq(eventAttendees.status, "going")));
-
-        let isAttending = false;
-        if (userId) {
-          const [userAttending] = await db
-            .select()
-            .from(eventAttendees)
-            .where(and(
-              eq(eventAttendees.eventId, r.event.id),
-              eq(eventAttendees.userId, userId),
-              eq(eventAttendees.status, "going")
-            ));
-          isAttending = !!userAttending;
-        }
+        const rsvpDetails = await this.getEventRsvpDetails(r.event.id, userId);
 
         return {
           ...r.event,
           creator: r.creator!,
-          attendeesCount: Number(attendeesResult?.count || 0),
-          isAttending,
+          ...rsvpDetails,
         };
       })
     );
@@ -838,29 +850,12 @@ export class DatabaseStorage implements IStorage {
 
     if (!result) return undefined;
 
-    const [attendeesResult] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(eventAttendees)
-      .where(and(eq(eventAttendees.eventId, id), eq(eventAttendees.status, "going")));
-
-    let isAttending = false;
-    if (userId) {
-      const [userAttending] = await db
-        .select()
-        .from(eventAttendees)
-        .where(and(
-          eq(eventAttendees.eventId, id),
-          eq(eventAttendees.userId, userId),
-          eq(eventAttendees.status, "going")
-        ));
-      isAttending = !!userAttending;
-    }
+    const rsvpDetails = await this.getEventRsvpDetails(id, userId);
 
     return {
       ...result.event,
       creator: result.creator!,
-      attendeesCount: Number(attendeesResult?.count || 0),
-      isAttending,
+      ...rsvpDetails,
     };
   }
 
@@ -895,6 +890,63 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+
+  async getEventAttendees(eventId: string): Promise<EventAttendeesGrouped> {
+    // Get all attendees for the event
+    const attendeeRecords = await db
+      .select({
+        attendee: eventAttendees,
+        user: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+          email: users.email,
+        },
+      })
+      .from(eventAttendees)
+      .leftJoin(users, eq(eventAttendees.userId, users.id))
+      .where(eq(eventAttendees.eventId, eventId));
+
+    // Build members with profiles for each attendee
+    const attendeesWithProfiles = await Promise.all(
+      attendeeRecords.map(async (record) => {
+        const [profile] = await db
+          .select()
+          .from(profiles)
+          .where(eq(profiles.userId, record.user!.id));
+
+        return {
+          status: record.attendee.status,
+          member: {
+            ...record.user!,
+            profile: profile || null,
+          } as MemberWithProfile,
+        };
+      })
+    );
+
+    // Group by RSVP status
+    const going: MemberWithProfile[] = [];
+    const maybe: MemberWithProfile[] = [];
+    const notGoing: MemberWithProfile[] = [];
+
+    for (const attendee of attendeesWithProfiles) {
+      switch (attendee.status) {
+        case "going":
+          going.push(attendee.member);
+          break;
+        case "maybe":
+          maybe.push(attendee.member);
+          break;
+        case "not_going":
+          notGoing.push(attendee.member);
+          break;
+      }
+    }
+
+    return { going, maybe, notGoing };
   }
 
   // Members

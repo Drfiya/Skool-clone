@@ -328,4 +328,14 @@ export type EventWithDetails = Event & {
   creator: { id: string; firstName: string | null; lastName: string | null; profileImageUrl: string | null };
   attendeesCount: number;
   isAttending: boolean;
+  userRsvpStatus: "going" | "maybe" | "not_going" | null;
+  goingCount: number;
+  maybeCount: number;
+  notGoingCount: number;
+};
+
+export type EventAttendeesGrouped = {
+  going: MemberWithProfile[];
+  maybe: MemberWithProfile[];
+  notGoing: MemberWithProfile[];
 };

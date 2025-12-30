@@ -15,6 +15,7 @@ import CourseDetailPage from "@/pages/course-detail";
 import LessonPage from "@/pages/lesson";
 import MembersPage from "@/pages/members";
 import CalendarPage from "@/pages/calendar";
+import EventDetailPage from "@/pages/event-detail";
 import LeaderboardPage from "@/pages/leaderboard";
 import ProfilePage from "@/pages/profile";
 import NotFound from "@/pages/not-found";
@@ -38,6 +39,7 @@ function AuthenticatedApp() {
             <Route path="/members" component={MembersPage} />
             <Route path="/members/:id" component={ProfilePage} />
             <Route path="/calendar" component={CalendarPage} />
+            <Route path="/calendar/:id" component={EventDetailPage} />
             <Route path="/leaderboard" component={LeaderboardPage} />
             <Route path="/profile" component={ProfilePage} />
             <Route component={NotFound} />

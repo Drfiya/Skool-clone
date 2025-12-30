@@ -5,6 +5,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSam
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EventCard, EventCardSkeleton } from "@/components/event-card";
+import { EventEditor } from "@/components/event-editor";
 import { TopBar } from "@/components/top-bar";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -26,8 +27,15 @@ interface PaginatedResponse<T> {
 export default function CalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const { isAuthenticated } = useAuth();
+  const [eventEditorOpen, setEventEditorOpen] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | undefined>(undefined);
+  const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
+
+  const handleEditEvent = (eventId: string) => {
+    setEditingEventId(eventId);
+    setEventEditorOpen(true);
+  };
 
   const { data: eventsResponse, isLoading } = useQuery<PaginatedResponse<EventWithDetails>>({
     queryKey: ["/api/events"],
@@ -80,7 +88,13 @@ export default function CalendarPage() {
               <p className="text-muted-foreground">Community events and meetups</p>
             </div>
             {isAuthenticated && (
-              <Button data-testid="button-create-event">
+              <Button
+                onClick={() => {
+                  setEditingEventId(undefined);
+                  setEventEditorOpen(true);
+                }}
+                data-testid="button-create-event"
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Create Event
               </Button>
@@ -172,6 +186,8 @@ export default function CalendarPage() {
                     event={event}
                     onRsvp={(eventId, status) => rsvpMutation.mutate({ eventId, status })}
                     isRsvping={rsvpMutation.isPending}
+                    onEdit={handleEditEvent}
+                    currentUserId={user?.id}
                   />
                 ))
               ) : (
@@ -183,6 +199,12 @@ export default function CalendarPage() {
           </div>
         </div>
       </div>
+
+      <EventEditor
+        open={eventEditorOpen}
+        onOpenChange={setEventEditorOpen}
+        eventId={editingEventId}
+      />
     </div>
   );
 }

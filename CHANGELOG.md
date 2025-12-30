@@ -110,3 +110,21 @@ All notable changes to this project will be documented in this file.
   - Threaded replies with visual indentation
   - "View X replies" expandable for nested comments
   - Reply form inline below comments
+
+### 2024-12-30 - Task 5: Event Management Completion
+- Implemented complete event management with RSVP system
+- Backend changes:
+  - `GET /api/events/:id/attendees` - returns attendees grouped by RSVP status
+  - Updated event responses to include goingCount, maybeCount, notGoingCount
+  - Added userRsvpStatus to event responses for logged-in users
+- Frontend changes:
+  - Created `client/src/components/event-editor.tsx` - Event create/edit dialog with date pickers
+  - Created `client/src/pages/event-detail.tsx` - Event Detail page with attendee tabs
+  - Updated `client/src/components/event-card.tsx` - Three RSVP buttons, clickable title
+  - Updated `client/src/pages/calendar.tsx` - Wired Create Event button
+  - Updated routing in App.tsx for `/calendar/:id`
+- Features:
+  - Full RSVP states with color-coded buttons (Going=green, Maybe=yellow, Can't Go=gray)
+  - Event detail page with attendee lists grouped by status
+  - Date/time pickers for event creation
+  - Event editing and deletion for creators

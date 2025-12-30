@@ -901,6 +901,20 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/events/:id", async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const event = await storage.getEvent(req.params.id, userId);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+      res.json(event);
+    } catch (error) {
+      console.error("Error fetching event:", error);
+      res.status(500).json({ message: "Failed to fetch event" });
+    }
+  });
+
   app.patch("/api/events/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
@@ -976,6 +990,22 @@ export async function registerRoutes(
       }
       console.error("Error updating RSVP:", error);
       res.status(500).json({ message: "Failed to update RSVP" });
+    }
+  });
+
+  app.get("/api/events/:id/attendees", async (req, res) => {
+    try {
+      // Verify event exists
+      const event = await storage.getEvent(req.params.id);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      const attendees = await storage.getEventAttendees(req.params.id);
+      res.json(attendees);
+    } catch (error) {
+      console.error("Error fetching event attendees:", error);
+      res.status(500).json({ message: "Failed to fetch event attendees" });
     }
   });
 
