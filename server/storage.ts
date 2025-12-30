@@ -32,10 +32,19 @@ export interface PaginatedResult<T> {
   total: number;
 }
 
+// Profile update data type
+export interface ProfileUpdateData {
+  bio?: string;
+  location?: string;
+  website?: string;
+  coverImageUrl?: string;
+}
+
 export interface IStorage {
   // Profiles
   getProfile(userId: string): Promise<Profile | undefined>;
   createOrUpdateProfile(data: InsertProfile): Promise<Profile>;
+  updateProfile(userId: string, data: ProfileUpdateData): Promise<Profile | undefined>;
 
   // Posts
   getPosts(userId?: string, pagination?: PaginationOptions): Promise<PaginatedResult<PostWithAuthor>>;
@@ -66,6 +75,7 @@ export interface IStorage {
 
   // Enrollments
   getEnrollments(userId: string): Promise<string[]>;
+  getEnrolledCoursesWithDetails(userId: string): Promise<CourseWithDetails[]>;
   createEnrollment(data: InsertEnrollment): Promise<Enrollment>;
 
   // Course Modules and Lessons
@@ -132,6 +142,28 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return profile;
+  }
+
+  async updateProfile(userId: string, data: ProfileUpdateData): Promise<Profile | undefined> {
+    // First check if profile exists
+    const [existing] = await db.select().from(profiles).where(eq(profiles.userId, userId));
+
+    if (existing) {
+      // Update existing profile
+      const [updated] = await db
+        .update(profiles)
+        .set(data)
+        .where(eq(profiles.userId, userId))
+        .returning();
+      return updated;
+    } else {
+      // Create new profile with the update data
+      const [created] = await db
+        .insert(profiles)
+        .values({ userId, ...data })
+        .returning();
+      return created;
+    }
   }
 
   // Posts
@@ -607,6 +639,90 @@ export class DatabaseStorage implements IStorage {
   async createEnrollment(data: InsertEnrollment): Promise<Enrollment> {
     const [enrollment] = await db.insert(enrollments).values(data).returning();
     return enrollment;
+  }
+
+  async getEnrolledCoursesWithDetails(userId: string): Promise<CourseWithDetails[]> {
+    // Get all enrollments for this user
+    const userEnrollments = await db
+      .select({ courseId: enrollments.courseId })
+      .from(enrollments)
+      .where(eq(enrollments.userId, userId));
+
+    if (userEnrollments.length === 0) {
+      return [];
+    }
+
+    const courseIds = userEnrollments.map((e) => e.courseId);
+
+    // Get course details for each enrolled course
+    const coursesWithDetails: CourseWithDetails[] = [];
+
+    for (const courseId of courseIds) {
+      const [result] = await db
+        .select({
+          course: courses,
+          instructor: {
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            profileImageUrl: users.profileImageUrl,
+          },
+        })
+        .from(courses)
+        .leftJoin(users, eq(courses.instructorId, users.id))
+        .where(eq(courses.id, courseId));
+
+      if (!result) continue;
+
+      const modulesList = await db
+        .select()
+        .from(courseModules)
+        .where(eq(courseModules.courseId, courseId));
+
+      let lessonsCount = 0;
+      let completedLessons = 0;
+
+      for (const mod of modulesList) {
+        const lessonsList = await db
+          .select()
+          .from(lessons)
+          .where(eq(lessons.moduleId, mod.id));
+
+        lessonsCount += lessonsList.length;
+
+        for (const lesson of lessonsList) {
+          const [prog] = await db
+            .select()
+            .from(lessonProgress)
+            .where(
+              and(
+                eq(lessonProgress.lessonId, lesson.id),
+                eq(lessonProgress.userId, userId),
+                eq(lessonProgress.isCompleted, true)
+              )
+            );
+          if (prog) completedLessons++;
+        }
+      }
+
+      const [enrollmentsResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(enrollments)
+        .where(eq(enrollments.courseId, courseId));
+
+      const progress = lessonsCount > 0 ? Math.round((completedLessons / lessonsCount) * 100) : 0;
+
+      coursesWithDetails.push({
+        ...result.course,
+        instructor: result.instructor!,
+        modulesCount: modulesList.length,
+        lessonsCount,
+        enrollmentsCount: Number(enrollmentsResult?.count || 0),
+        progress,
+      });
+    }
+
+    return coursesWithDetails;
   }
 
   // Course Modules and Lessons

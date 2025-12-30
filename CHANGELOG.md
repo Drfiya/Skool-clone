@@ -128,3 +128,20 @@ All notable changes to this project will be documented in this file.
   - Event detail page with attendee lists grouped by status
   - Date/time pickers for event creation
   - Event editing and deletion for creators
+
+### 2024-12-30 - Task 6: Profile & Settings
+- Implemented user profile management and settings
+- Backend changes:
+  - `PATCH /api/members/me` - update profile (bio, location, website, coverImageUrl)
+  - `GET /api/enrollments/my/details` - enrolled courses with full details and progress
+- Frontend changes:
+  - Created `client/src/components/profile-editor.tsx` - Profile Edit dialog
+  - Created `client/src/pages/settings.tsx` - Settings page with theme, notifications, account
+  - Updated `client/src/pages/profile.tsx` - Edit button, Courses tab with enrolled courses
+  - Updated routing in App.tsx for `/settings`
+- Features:
+  - Edit profile with bio, location, website, cover image URL with preview
+  - Settings page with Light/Dark/System theme selector
+  - Notification preferences stored in localStorage
+  - Enrolled courses displayed on profile with progress bars
+  - Profile stats show actual enrolled course count

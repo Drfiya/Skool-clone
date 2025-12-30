@@ -1,21 +1,26 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRoute } from "wouter";
-import { Trophy, BookOpen, MessageSquare, MapPin, Globe, Calendar } from "lucide-react";
+import { useRoute, Link } from "wouter";
+import { Trophy, BookOpen, MessageSquare, MapPin, Globe, Calendar, Pencil } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TopBar } from "@/components/top-bar";
 import { PostCard, PostCardSkeleton } from "@/components/post-card";
+import { CourseCard, CourseCardSkeleton } from "@/components/course-card";
+import { ProfileEditor } from "@/components/profile-editor";
 import { useAuth } from "@/hooks/use-auth";
-import type { MemberWithProfile, PostWithAuthor } from "@shared/schema";
+import type { MemberWithProfile, PostWithAuthor, CourseWithDetails } from "@shared/schema";
 import { format } from "date-fns";
 
 export default function ProfilePage() {
   const [match, params] = useRoute("/members/:id");
   const { user } = useAuth();
-  
+  const [editorOpen, setEditorOpen] = useState(false);
+
   const memberId = match ? params?.id : user?.id;
   const isOwnProfile = !match || memberId === user?.id;
 
@@ -27,6 +32,12 @@ export default function ProfilePage() {
   const { data: posts, isLoading: postsLoading } = useQuery<PostWithAuthor[]>({
     queryKey: ["/api/posts", { authorId: memberId }],
     enabled: !!memberId,
+  });
+
+  // Fetch enrolled courses with details (only for own profile)
+  const { data: enrolledCourses, isLoading: coursesLoading } = useQuery<CourseWithDetails[]>({
+    queryKey: ["/api/enrollments/my/details"],
+    enabled: isOwnProfile && !!user?.id,
   });
 
   const getInitials = () => {
@@ -99,10 +110,23 @@ export default function ProfilePage() {
                   <AvatarFallback className="text-2xl">{getInitials()}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 pt-2 sm:pt-0 sm:mt-14">
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <h1 className="text-2xl font-bold" data-testid="text-profile-name">{getDisplayName()}</h1>
-                    {member.profile?.role && member.profile.role !== "member" && (
-                      <Badge variant="secondary">{member.profile.role}</Badge>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h1 className="text-2xl font-bold" data-testid="text-profile-name">{getDisplayName()}</h1>
+                      {member.profile?.role && member.profile.role !== "member" && (
+                        <Badge variant="secondary">{member.profile.role}</Badge>
+                      )}
+                    </div>
+                    {isOwnProfile && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditorOpen(true)}
+                        data-testid="button-edit-profile"
+                      >
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit Profile
+                      </Button>
                     )}
                   </div>
                   {member.profile?.bio && (
@@ -164,7 +188,7 @@ export default function ProfilePage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold" data-testid="text-profile-courses">
-                  0
+                  {isOwnProfile ? (enrolledCourses?.length || 0) : 0}
                 </div>
               </CardContent>
             </Card>
@@ -173,6 +197,9 @@ export default function ProfilePage() {
           <Tabs defaultValue="activity">
             <TabsList className="mb-4">
               <TabsTrigger value="activity" data-testid="tab-activity">Activity</TabsTrigger>
+              {isOwnProfile && (
+                <TabsTrigger value="courses" data-testid="tab-courses">Courses</TabsTrigger>
+              )}
               <TabsTrigger value="about" data-testid="tab-about">About</TabsTrigger>
             </TabsList>
             <TabsContent value="activity" className="space-y-4">
@@ -191,6 +218,42 @@ export default function ProfilePage() {
                 </p>
               )}
             </TabsContent>
+            {isOwnProfile && (
+              <TabsContent value="courses">
+                {coursesLoading ? (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <CourseCardSkeleton />
+                    <CourseCardSkeleton />
+                    <CourseCardSkeleton />
+                  </div>
+                ) : enrolledCourses && enrolledCourses.length > 0 ? (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {enrolledCourses.map((course) => (
+                      <CourseCard
+                        key={course.id}
+                        course={course}
+                        isEnrolled={true}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="py-8">
+                      <div className="text-center">
+                        <BookOpen className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                        <h3 className="text-lg font-medium mb-2">No courses yet</h3>
+                        <p className="text-muted-foreground mb-4">
+                          You haven't enrolled in any courses. Explore the classroom to find courses.
+                        </p>
+                        <Button asChild>
+                          <Link href="/classroom">Browse Courses</Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+            )}
             <TabsContent value="about">
               <Card>
                 <CardContent className="pt-6">
@@ -227,6 +290,13 @@ export default function ProfilePage() {
           </Tabs>
         </div>
       </div>
+
+      {/* Profile Editor Dialog */}
+      <ProfileEditor
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        currentProfile={member}
+      />
     </div>
   );
 }

@@ -48,6 +48,16 @@ const updateCommentSchema = z.object({
 
 const rsvpStatusSchema = z.enum(["going", "maybe", "not_going"]);
 
+// Profile update schema with URL validation
+const updateProfileSchema = z.object({
+  bio: z.string().optional(),
+  location: z.string().optional(),
+  website: z.string().url("Invalid URL format").optional().or(z.literal("")),
+  coverImageUrl: z.string().url("Invalid URL format").optional().or(z.literal("")),
+}).refine(data => Object.keys(data).length > 0, {
+  message: "At least one field must be provided",
+});
+
 // Pagination schema
 const paginationSchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(20),
@@ -631,6 +641,19 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/enrollments/my/details", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      const enrolledCourses = await storage.getEnrolledCoursesWithDetails(userId);
+      res.json(enrolledCourses);
+    } catch (error) {
+      console.error("Error fetching enrolled courses with details:", error);
+      res.status(500).json({ message: "Failed to fetch enrolled courses" });
+    }
+  });
+
   app.patch("/api/lessons/:id/progress", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
@@ -1010,6 +1033,39 @@ export async function registerRoutes(
   });
 
   // ===== Members =====
+  // Update authenticated user's profile
+  app.patch("/api/members/me", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      const data = updateProfileSchema.parse(req.body);
+
+      // Filter out empty strings (treat them as null/undefined)
+      const updateData: { bio?: string; location?: string; website?: string; coverImageUrl?: string } = {};
+      if (data.bio !== undefined) updateData.bio = data.bio;
+      if (data.location !== undefined) updateData.location = data.location;
+      if (data.website !== undefined && data.website !== "") updateData.website = data.website;
+      if (data.coverImageUrl !== undefined && data.coverImageUrl !== "") updateData.coverImageUrl = data.coverImageUrl;
+
+      await storage.updateProfile(userId, updateData);
+
+      // Return the updated member with profile
+      const member = await storage.getMember(userId);
+      if (!member) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+
+      res.json(member);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error updating profile:", error);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
   app.get("/api/members", async (req, res) => {
     try {
       const { limit, offset } = paginationSchema.parse(req.query);

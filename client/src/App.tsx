@@ -18,6 +18,7 @@ import CalendarPage from "@/pages/calendar";
 import EventDetailPage from "@/pages/event-detail";
 import LeaderboardPage from "@/pages/leaderboard";
 import ProfilePage from "@/pages/profile";
+import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedApp() {
@@ -42,6 +43,7 @@ function AuthenticatedApp() {
             <Route path="/calendar/:id" component={EventDetailPage} />
             <Route path="/leaderboard" component={LeaderboardPage} />
             <Route path="/profile" component={ProfilePage} />
+            <Route path="/settings" component={SettingsPage} />
             <Route component={NotFound} />
           </Switch>
         </main>

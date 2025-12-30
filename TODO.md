@@ -43,23 +43,17 @@ This document tracks the remaining tasks to make the Skool Clone fully functiona
 - Frontend: Full RSVP states with color-coded buttons (Going/Maybe/Can't Go)
 - Frontend: Made EventCard clickable with "View Details" link
 
+### Task 6: Profile & Settings ✅
+- Backend: Added `PATCH /api/members/me` endpoint for profile updates
+- Backend: Added `GET /api/enrollments/my/details` for enrolled courses with progress
+- Frontend: Created Profile Editor dialog (bio, location, website, cover image)
+- Frontend: Created Settings page with theme selector, notifications, account info
+- Frontend: Added Courses tab to Profile showing enrolled courses with progress
+- Frontend: Profile stats now show actual enrolled course count
+
 ---
 
 ## Remaining Tasks
-
-### TASK 6: Profile & Settings (High Priority)
-**Status:** Not Started
-**Priority:** High
-**Missing:** Cannot update profile information
-
-| Subtask | Type | Description | Status |
-|---------|------|-------------|--------|
-| 6.1 | Backend | Add Profile UPDATE endpoint (PATCH `/api/members/me`) | ⬜ |
-| 6.2 | Frontend | Create Profile Edit dialog (bio, location, website, images) | ⬜ |
-| 6.3 | Frontend | Create Settings page (theme, notifications, account) | ⬜ |
-| 6.4 | Frontend | Show enrolled courses with progress on Profile page | ⬜ |
-
----
 
 ### TASK 7: UI/UX Polish (Medium Priority)
 **Status:** Not Started
@@ -127,11 +121,11 @@ This document tracks the remaining tasks to make the Skool Clone fully functiona
 | **Critical** | Task 3 (Course/Lesson System) | 6 | ✅ Completed |
 | **High** | Task 4 (Posts/Comments) | 5 | ✅ Completed |
 | **High** | Task 5 (Events) | 4 | ✅ Completed |
-| **High** | Task 6 (Profile/Settings) | 4 | Not Started |
+| **High** | Task 6 (Profile/Settings) | 4 | ✅ Completed |
 | **Medium** | Tasks 7, 8 (UI/UX, Search) | 10 | Not Started |
 | **Lower** | Tasks 9, 10 (Enrollment, Admin) | 9 | Not Started |
 
-**Total Remaining:** 23 subtasks across 5 tasks
+**Total Remaining:** 19 subtasks across 4 tasks
 
 ---
 
