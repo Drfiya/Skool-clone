@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CourseCard, CourseCardSkeleton } from "@/components/course-card";
+import { CourseEditor } from "@/components/course-editor";
 import { TopBar } from "@/components/top-bar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -26,6 +27,7 @@ interface PaginatedResponse<T> {
 export default function ClassroomPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [courseEditorOpen, setCourseEditorOpen] = useState(false);
   const { toast } = useToast();
   const { isAuthenticated } = useAuth();
 
@@ -81,7 +83,10 @@ export default function ClassroomPage() {
               <p className="text-muted-foreground">Browse and enroll in courses</p>
             </div>
             {isAuthenticated && (
-              <Button data-testid="button-create-course">
+              <Button
+                onClick={() => setCourseEditorOpen(true)}
+                data-testid="button-create-course"
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Create Course
               </Button>
@@ -139,6 +144,12 @@ export default function ClassroomPage() {
           )}
         </div>
       </div>
+
+      {/* Course Editor Dialog */}
+      <CourseEditor
+        open={courseEditorOpen}
+        onOpenChange={setCourseEditorOpen}
+      />
     </div>
   );
 }

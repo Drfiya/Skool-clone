@@ -11,6 +11,8 @@ import { useAuth } from "@/hooks/use-auth";
 import LandingPage from "@/pages/landing";
 import FeedPage from "@/pages/feed";
 import ClassroomPage from "@/pages/classroom";
+import CourseDetailPage from "@/pages/course-detail";
+import LessonPage from "@/pages/lesson";
 import MembersPage from "@/pages/members";
 import CalendarPage from "@/pages/calendar";
 import LeaderboardPage from "@/pages/leaderboard";
@@ -31,7 +33,8 @@ function AuthenticatedApp() {
           <Switch>
             <Route path="/" component={FeedPage} />
             <Route path="/classroom" component={ClassroomPage} />
-            <Route path="/classroom/:id" component={ClassroomPage} />
+            <Route path="/classroom/:courseId/lesson/:lessonId" component={LessonPage} />
+            <Route path="/classroom/:id" component={CourseDetailPage} />
             <Route path="/members" component={MembersPage} />
             <Route path="/members/:id" component={ProfilePage} />
             <Route path="/calendar" component={CalendarPage} />

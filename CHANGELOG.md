@@ -63,3 +63,29 @@ All notable changes to this project will be documented in this file.
   - `client/src/pages/classroom.tsx` - Updated to use paginated response
   - `client/src/pages/members.tsx` - Updated to use paginated response
   - `client/src/pages/calendar.tsx` - Updated to use paginated response
+
+### 2024-12-30 - Task 3: Course & Lesson Management System
+- Implemented complete course content management (critical core feature)
+- Backend changes (`server/routes.ts`, `server/storage.ts`):
+  - Module CRUD: POST/PATCH/DELETE `/api/courses/:id/modules`
+  - Lesson CRUD: POST/PATCH/DELETE `/api/modules/:id/lessons`
+  - GET `/api/modules/:moduleId/lessons` - list lessons
+  - GET `/api/lessons/:id` - get single lesson
+  - GET `/api/lessons/:id/progress` - get lesson progress
+  - PUT `/api/courses/:id/modules/reorder` - reorder modules
+  - PUT `/api/modules/:id/lessons/reorder` - reorder lessons
+  - GET `/api/courses/:id/progress` - get all lesson progress for a course
+- Frontend changes:
+  - Created `client/src/pages/course-detail.tsx` - Course Detail page with modules/lessons accordion
+  - Created `client/src/pages/lesson.tsx` - Lesson Viewer with video support, progress tracking, navigation
+  - Created `client/src/components/course-editor.tsx` - Full course editor dialog for instructors
+  - Updated `client/src/App.tsx` - Added routes for course detail and lesson pages
+  - Updated `client/src/pages/classroom.tsx` - Wired "Create Course" button to editor
+- Features:
+  - Course detail view with expandable modules and lesson list
+  - Lesson viewer with YouTube/Vimeo/HTML5 video support
+  - Mark lesson complete functionality
+  - Previous/Next lesson navigation
+  - Course outline sidebar with progress indicators
+  - Full CRUD for courses, modules, and lessons
+  - Drag-to-reorder (via up/down buttons) for modules and lessons

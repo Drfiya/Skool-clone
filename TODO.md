@@ -17,25 +17,18 @@ This document tracks the remaining tasks to make the Skool Clone fully functiona
 - Backend: Response format now includes `{ data: [], pagination: { total, limit, offset, hasMore } }`
 - Frontend: Updated all pages to handle new paginated response format
 
+### Task 3: Course & Lesson Management System ✅
+- Backend: Added Module CRUD endpoints (POST/PATCH/DELETE `/api/courses/:id/modules`)
+- Backend: Added Lesson CRUD endpoints (POST/PATCH/DELETE `/api/modules/:id/lessons`)
+- Backend: Added reordering endpoints (`PUT /api/courses/:id/modules/reorder`, `PUT /api/modules/:id/lessons/reorder`)
+- Backend: Added lesson progress endpoint (`GET /api/courses/:id/progress`)
+- Frontend: Created Course Detail page (`/classroom/:id`) with modules/lessons accordion
+- Frontend: Created Lesson Viewer page (`/classroom/:courseId/lesson/:lessonId`) with video support
+- Frontend: Created Course Editor dialog for instructors to manage courses, modules, and lessons
+
 ---
 
 ## Remaining Tasks
-
-### TASK 3: Course & Lesson Management System (Critical - Core Feature)
-**Status:** Not Started
-**Priority:** Critical
-**Blocking Issue:** Users can enroll but cannot view or complete course content
-
-| Subtask | Type | Description | Status |
-|---------|------|-------------|--------|
-| 3.1 | Backend | Add Module CRUD endpoints (POST/PATCH/DELETE `/api/courses/:id/modules`) | ⬜ |
-| 3.2 | Backend | Add Lesson CRUD endpoints (POST/PATCH/DELETE `/api/modules/:id/lessons`) | ⬜ |
-| 3.3 | Backend | Add reordering endpoints for modules and lessons | ⬜ |
-| 3.4 | Frontend | Create Course Detail page (`/classroom/:id`) with modules/lessons tree | ⬜ |
-| 3.5 | Frontend | Create Lesson Viewer page with video support and progress tracking | ⬜ |
-| 3.6 | Frontend | Create Course Editor dialog for instructors | ⬜ |
-
----
 
 ### TASK 4: Post & Comment Improvements (High Priority)
 **Status:** Not Started
@@ -143,12 +136,12 @@ This document tracks the remaining tasks to make the Skool Clone fully functiona
 
 | Priority | Tasks | Subtasks | Status |
 |----------|-------|----------|--------|
-| **Critical** | Task 3 (Course/Lesson System) | 6 | Not Started |
+| **Critical** | Task 3 (Course/Lesson System) | 6 | ✅ Completed |
 | **High** | Tasks 4, 5, 6 (Posts, Events, Profile) | 13 | Not Started |
 | **Medium** | Tasks 7, 8 (UI/UX, Search) | 10 | Not Started |
 | **Lower** | Tasks 9, 10 (Enrollment, Admin) | 9 | Not Started |
 
-**Total Remaining:** 38 subtasks across 8 tasks
+**Total Remaining:** 32 subtasks across 7 tasks
 
 ---
 

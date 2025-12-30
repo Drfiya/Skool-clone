@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
-import { insertPostSchema, insertCommentSchema, insertCourseSchema, insertEventSchema } from "@shared/schema";
+import { insertPostSchema, insertCommentSchema, insertCourseSchema, insertCourseModuleSchema, insertEventSchema, insertLessonSchema } from "@shared/schema";
 import { z } from "zod";
 
 // Validation schemas
@@ -26,6 +26,20 @@ const updateCourseSchema = z.object({
   description: z.string().optional(),
   thumbnailUrl: z.string().optional(),
   isPublished: z.boolean().optional(),
+});
+
+const updateLessonSchema = z.object({
+  title: z.string().min(1).optional(),
+  content: z.string().optional(),
+  videoUrl: z.string().optional(),
+  duration: z.number().min(0).optional(),
+  orderIndex: z.number().min(0).optional(),
+});
+
+const updateModuleSchema = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().optional(),
+  orderIndex: z.number().min(0).optional(),
 });
 
 const rsvpStatusSchema = z.enum(["going", "maybe", "not_going"]);
@@ -281,6 +295,182 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/courses/:id/progress", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      const progress = await storage.getCourseLessonProgress(userId, req.params.id);
+      res.json(progress);
+    } catch (error) {
+      console.error("Error fetching course progress:", error);
+      res.status(500).json({ message: "Failed to fetch course progress" });
+    }
+  });
+
+  // Create module for a course (instructor only)
+  app.post("/api/courses/:courseId/modules", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      // Check course exists and user is the instructor
+      const course = await storage.getCourse(req.params.courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      if (course.instructor.id !== userId) {
+        return res.status(403).json({ message: "Only the instructor can add modules to this course" });
+      }
+
+      const data = insertCourseModuleSchema.parse({
+        ...req.body,
+        courseId: req.params.courseId,
+      });
+
+      const module = await storage.createModule(data);
+      res.status(201).json(module);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error creating module:", error);
+      res.status(500).json({ message: "Failed to create module" });
+    }
+  });
+
+  // Update module (instructor only)
+  app.patch("/api/modules/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      // Get module to find the course
+      const module = await storage.getModule(req.params.id);
+      if (!module) {
+        return res.status(404).json({ message: "Module not found" });
+      }
+
+      // Check course ownership
+      const course = await storage.getCourse(module.courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      if (course.instructor.id !== userId) {
+        return res.status(403).json({ message: "Only the instructor can edit this module" });
+      }
+
+      const data = updateModuleSchema.parse(req.body);
+      const updated = await storage.updateModule(req.params.id, data);
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error updating module:", error);
+      res.status(500).json({ message: "Failed to update module" });
+    }
+  });
+
+  // Delete module (instructor only)
+  app.delete("/api/modules/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      // Get module to find the course
+      const module = await storage.getModule(req.params.id);
+      if (!module) {
+        return res.status(404).json({ message: "Module not found" });
+      }
+
+      // Check course ownership
+      const course = await storage.getCourse(module.courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      if (course.instructor.id !== userId) {
+        return res.status(403).json({ message: "Only the instructor can delete this module" });
+      }
+
+      await storage.deleteModule(req.params.id);
+      res.json({ message: "Module deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting module:", error);
+      res.status(500).json({ message: "Failed to delete module" });
+    }
+  });
+
+  // Reorder modules within a course (instructor only)
+  app.put("/api/courses/:courseId/modules/reorder", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      // Check course exists and user is the instructor
+      const course = await storage.getCourse(req.params.courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      if (course.instructor.id !== userId) {
+        return res.status(403).json({ message: "Only the instructor can reorder modules" });
+      }
+
+      // Validate request body
+      const { moduleIds } = req.body;
+      if (!Array.isArray(moduleIds)) {
+        return res.status(400).json({ message: "moduleIds must be an array of strings" });
+      }
+
+      await storage.reorderModules(req.params.courseId, moduleIds);
+      res.json({ message: "Modules reordered successfully" });
+    } catch (error: any) {
+      if (error.message?.includes("not found or does not belong")) {
+        return res.status(400).json({ message: error.message });
+      }
+      console.error("Error reordering modules:", error);
+      res.status(500).json({ message: "Failed to reorder modules" });
+    }
+  });
+
+  // Reorder lessons within a module (instructor only)
+  app.put("/api/modules/:moduleId/lessons/reorder", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      // Get module to find the course
+      const module = await storage.getModule(req.params.moduleId);
+      if (!module) {
+        return res.status(404).json({ message: "Module not found" });
+      }
+
+      // Check course ownership
+      const course = await storage.getCourse(module.courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      if (course.instructor.id !== userId) {
+        return res.status(403).json({ message: "Only the instructor can reorder lessons" });
+      }
+
+      // Validate request body
+      const { lessonIds } = req.body;
+      if (!Array.isArray(lessonIds)) {
+        return res.status(400).json({ message: "lessonIds must be an array of strings" });
+      }
+
+      await storage.reorderLessons(req.params.moduleId, lessonIds);
+      res.json({ message: "Lessons reordered successfully" });
+    } catch (error: any) {
+      if (error.message?.includes("not found or does not belong")) {
+        return res.status(400).json({ message: error.message });
+      }
+      console.error("Error reordering lessons:", error);
+      res.status(500).json({ message: "Failed to reorder lessons" });
+    }
+  });
+
   app.post("/api/courses", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
@@ -390,6 +580,207 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating progress:", error);
       res.status(500).json({ message: "Failed to update progress" });
+    }
+  });
+
+  // ===== Lessons =====
+  app.get("/api/lessons/:id", async (req, res) => {
+    try {
+      const lesson = await storage.getLesson(req.params.id);
+      if (!lesson) {
+        return res.status(404).json({ message: "Lesson not found" });
+      }
+      res.json(lesson);
+    } catch (error) {
+      console.error("Error fetching lesson:", error);
+      res.status(500).json({ message: "Failed to fetch lesson" });
+    }
+  });
+
+  app.get("/api/lessons/:id/progress", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      const progress = await storage.getLessonProgress(userId, req.params.id);
+      res.json(progress || { isCompleted: false });
+    } catch (error) {
+      console.error("Error fetching lesson progress:", error);
+      res.status(500).json({ message: "Failed to fetch lesson progress" });
+    }
+  });
+
+  app.get("/api/modules/:moduleId/lessons", async (req, res) => {
+    try {
+      // Verify module exists
+      const module = await storage.getModule(req.params.moduleId);
+      if (!module) {
+        return res.status(404).json({ message: "Module not found" });
+      }
+
+      const lessons = await storage.getLessonsByModule(req.params.moduleId);
+      res.json(lessons);
+    } catch (error) {
+      console.error("Error fetching lessons:", error);
+      res.status(500).json({ message: "Failed to fetch lessons" });
+    }
+  });
+
+  app.post("/api/modules/:moduleId/lessons", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      // Verify module exists and get course info for authorization
+      const module = await storage.getModule(req.params.moduleId);
+      if (!module) {
+        return res.status(404).json({ message: "Module not found" });
+      }
+
+      // Check if user is the course instructor
+      const course = await storage.getCourse(module.courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      if (course.instructor.id !== userId) {
+        return res.status(403).json({ message: "Only the course instructor can create lessons" });
+      }
+
+      const data = insertLessonSchema.parse({
+        ...req.body,
+        moduleId: req.params.moduleId,
+      });
+
+      const lesson = await storage.createLesson(data);
+      res.status(201).json(lesson);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error creating lesson:", error);
+      res.status(500).json({ message: "Failed to create lesson" });
+    }
+  });
+
+  app.patch("/api/lessons/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      // Get lesson with module info
+      const lesson = await storage.getLesson(req.params.id);
+      if (!lesson) {
+        return res.status(404).json({ message: "Lesson not found" });
+      }
+
+      // Check if user is the course instructor
+      const course = await storage.getCourse(lesson.module.courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      if (course.instructor.id !== userId) {
+        return res.status(403).json({ message: "Only the course instructor can update lessons" });
+      }
+
+      const data = updateLessonSchema.parse(req.body);
+      const updated = await storage.updateLesson(req.params.id, data);
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error updating lesson:", error);
+      res.status(500).json({ message: "Failed to update lesson" });
+    }
+  });
+
+  app.delete("/api/lessons/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      // Get lesson with module info
+      const lesson = await storage.getLesson(req.params.id);
+      if (!lesson) {
+        return res.status(404).json({ message: "Lesson not found" });
+      }
+
+      // Check if user is the course instructor
+      const course = await storage.getCourse(lesson.module.courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      if (course.instructor.id !== userId) {
+        return res.status(403).json({ message: "Only the course instructor can delete lessons" });
+      }
+
+      await storage.deleteLesson(req.params.id);
+      res.json({ message: "Lesson deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting lesson:", error);
+      res.status(500).json({ message: "Failed to delete lesson" });
+    }
+  });
+
+  // Reorder modules within a course (instructor only)
+  app.put("/api/courses/:courseId/modules/reorder", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      // Check course exists and user is the instructor
+      const course = await storage.getCourse(req.params.courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      if (course.instructor.id !== userId) {
+        return res.status(403).json({ message: "Only the instructor can reorder modules" });
+      }
+
+      const { moduleIds } = req.body;
+      if (!Array.isArray(moduleIds)) {
+        return res.status(400).json({ message: "moduleIds must be an array" });
+      }
+
+      await storage.reorderModules(req.params.courseId, moduleIds);
+      res.json({ message: "Modules reordered successfully" });
+    } catch (error) {
+      console.error("Error reordering modules:", error);
+      res.status(500).json({ message: "Failed to reorder modules" });
+    }
+  });
+
+  // Reorder lessons within a module (instructor only)
+  app.put("/api/modules/:moduleId/lessons/reorder", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      // Get module to find the course
+      const module = await storage.getModule(req.params.moduleId);
+      if (!module) {
+        return res.status(404).json({ message: "Module not found" });
+      }
+
+      // Check course ownership
+      const course = await storage.getCourse(module.courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      if (course.instructor.id !== userId) {
+        return res.status(403).json({ message: "Only the instructor can reorder lessons" });
+      }
+
+      const { lessonIds } = req.body;
+      if (!Array.isArray(lessonIds)) {
+        return res.status(400).json({ message: "lessonIds must be an array" });
+      }
+
+      await storage.reorderLessons(req.params.moduleId, lessonIds);
+      res.json({ message: "Lessons reordered successfully" });
+    } catch (error) {
+      console.error("Error reordering lessons:", error);
+      res.status(500).json({ message: "Failed to reorder lessons" });
     }
   });
 

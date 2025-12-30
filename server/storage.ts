@@ -69,6 +69,8 @@ export interface IStorage {
   getModulesWithLessons(courseId: string): Promise<(CourseModule & { lessons: Lesson[] })[]>;
 
   // Lesson Progress
+  getLessonProgress(userId: string, lessonId: string): Promise<LessonProgress | undefined>;
+  getCourseLessonProgress(userId: string, courseId: string): Promise<Record<string, boolean>>;
   updateLessonProgress(userId: string, lessonId: string, isCompleted: boolean): Promise<LessonProgress>;
 
   // Events
@@ -89,6 +91,24 @@ export interface IStorage {
 
   // Points
   addPoints(userId: string, points: number): Promise<void>;
+
+  // Lessons
+  getLesson(id: string): Promise<(Lesson & { module: CourseModule }) | undefined>;
+  getLessonsByModule(moduleId: string): Promise<Lesson[]>;
+  createLesson(data: InsertLesson): Promise<Lesson>;
+  updateLesson(id: string, data: Partial<InsertLesson>): Promise<Lesson | undefined>;
+  deleteLesson(id: string): Promise<boolean>;
+
+  // Module CRUD
+  getModule(id: string): Promise<CourseModule | undefined>;
+  getModulesByCourse(courseId: string): Promise<CourseModule[]>;
+  createModule(data: InsertCourseModule): Promise<CourseModule>;
+  updateModule(id: string, data: Partial<InsertCourseModule>): Promise<CourseModule | undefined>;
+  deleteModule(id: string): Promise<boolean>;
+
+  // Reordering
+  reorderModules(courseId: string, moduleIds: string[]): Promise<void>;
+  reorderLessons(moduleId: string, lessonIds: string[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -532,6 +552,58 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Lesson Progress
+  async getLessonProgress(userId: string, lessonId: string): Promise<LessonProgress | undefined> {
+    const [progress] = await db
+      .select()
+      .from(lessonProgress)
+      .where(and(eq(lessonProgress.userId, userId), eq(lessonProgress.lessonId, lessonId)));
+    return progress;
+  }
+
+  async getCourseLessonProgress(userId: string, courseId: string): Promise<Record<string, boolean>> {
+    // Get all modules for this course
+    const modulesList = await db
+      .select()
+      .from(courseModules)
+      .where(eq(courseModules.courseId, courseId));
+
+    // Get all lessons for these modules
+    const lessonIds: string[] = [];
+    for (const mod of modulesList) {
+      const lessonsList = await db
+        .select({ id: lessons.id })
+        .from(lessons)
+        .where(eq(lessons.moduleId, mod.id));
+      lessonIds.push(...lessonsList.map(l => l.id));
+    }
+
+    // Get progress for all lessons
+    const progressMap: Record<string, boolean> = {};
+    if (lessonIds.length > 0) {
+      const progressList = await db
+        .select()
+        .from(lessonProgress)
+        .where(and(
+          eq(lessonProgress.userId, userId),
+          eq(lessonProgress.isCompleted, true)
+        ));
+
+      // Initialize all lessons as not completed
+      for (const lessonId of lessonIds) {
+        progressMap[lessonId] = false;
+      }
+
+      // Mark completed lessons
+      for (const prog of progressList) {
+        if (lessonIds.includes(prog.lessonId)) {
+          progressMap[prog.lessonId] = true;
+        }
+      }
+    }
+
+    return progressMap;
+  }
+
   async updateLessonProgress(userId: string, lessonId: string, isCompleted: boolean): Promise<LessonProgress> {
     const [existing] = await db
       .select()
@@ -852,6 +924,130 @@ export class DatabaseStorage implements IStorage {
         .where(eq(profiles.id, existing.id));
     } else {
       await db.insert(profiles).values({ userId, points });
+    }
+  }
+
+  // Lessons
+  async getLesson(id: string): Promise<(Lesson & { module: CourseModule }) | undefined> {
+    const [result] = await db
+      .select({
+        lesson: lessons,
+        module: courseModules,
+      })
+      .from(lessons)
+      .leftJoin(courseModules, eq(lessons.moduleId, courseModules.id))
+      .where(eq(lessons.id, id));
+
+    if (!result || !result.module) return undefined;
+
+    return {
+      ...result.lesson,
+      module: result.module,
+    };
+  }
+
+  async getLessonsByModule(moduleId: string): Promise<Lesson[]> {
+    return db
+      .select()
+      .from(lessons)
+      .where(eq(lessons.moduleId, moduleId))
+      .orderBy(lessons.orderIndex);
+  }
+
+  async createLesson(data: InsertLesson): Promise<Lesson> {
+    const [lesson] = await db.insert(lessons).values(data).returning();
+    return lesson;
+  }
+
+  async updateLesson(id: string, data: Partial<InsertLesson>): Promise<Lesson | undefined> {
+    const [lesson] = await db.update(lessons).set(data).where(eq(lessons.id, id)).returning();
+    return lesson;
+  }
+
+  async deleteLesson(id: string): Promise<boolean> {
+    // lessonProgress records are deleted automatically via cascade (onDelete: "cascade" in schema)
+    await db.delete(lessons).where(eq(lessons.id, id));
+    return true;
+  }
+
+  // Module CRUD
+  async getModule(id: string): Promise<CourseModule | undefined> {
+    const [module] = await db.select().from(courseModules).where(eq(courseModules.id, id));
+    return module;
+  }
+
+  async getModulesByCourse(courseId: string): Promise<CourseModule[]> {
+    return db
+      .select()
+      .from(courseModules)
+      .where(eq(courseModules.courseId, courseId))
+      .orderBy(courseModules.orderIndex);
+  }
+
+  async createModule(data: InsertCourseModule): Promise<CourseModule> {
+    const [module] = await db.insert(courseModules).values(data).returning();
+    return module;
+  }
+
+  async updateModule(id: string, data: Partial<InsertCourseModule>): Promise<CourseModule | undefined> {
+    const [module] = await db.update(courseModules).set(data).where(eq(courseModules.id, id)).returning();
+    return module;
+  }
+
+  async deleteModule(id: string): Promise<boolean> {
+    // Lessons are deleted automatically via cascade (onDelete: "cascade" in schema)
+    await db.delete(courseModules).where(eq(courseModules.id, id));
+    return true;
+  }
+
+  // Reordering
+  async reorderModules(courseId: string, moduleIds: string[]): Promise<void> {
+    // Validate that all moduleIds exist and belong to the correct course
+    const existingModules = await db
+      .select({ id: courseModules.id })
+      .from(courseModules)
+      .where(eq(courseModules.courseId, courseId));
+
+    const existingIds = new Set(existingModules.map(m => m.id));
+
+    // Check all provided IDs exist and belong to this course
+    for (const moduleId of moduleIds) {
+      if (!existingIds.has(moduleId)) {
+        throw new Error(`Module ${moduleId} not found or does not belong to course ${courseId}`);
+      }
+    }
+
+    // Update each module's orderIndex based on its position in the array
+    for (let i = 0; i < moduleIds.length; i++) {
+      await db
+        .update(courseModules)
+        .set({ orderIndex: i })
+        .where(eq(courseModules.id, moduleIds[i]));
+    }
+  }
+
+  async reorderLessons(moduleId: string, lessonIds: string[]): Promise<void> {
+    // Validate that all lessonIds exist and belong to the correct module
+    const existingLessons = await db
+      .select({ id: lessons.id })
+      .from(lessons)
+      .where(eq(lessons.moduleId, moduleId));
+
+    const existingIds = new Set(existingLessons.map(l => l.id));
+
+    // Check all provided IDs exist and belong to this module
+    for (const lessonId of lessonIds) {
+      if (!existingIds.has(lessonId)) {
+        throw new Error(`Lesson ${lessonId} not found or does not belong to module ${moduleId}`);
+      }
+    }
+
+    // Update each lesson's orderIndex based on its position in the array
+    for (let i = 0; i < lessonIds.length; i++) {
+      await db
+        .update(lessons)
+        .set({ orderIndex: i })
+        .where(eq(lessons.id, lessonIds[i]));
     }
   }
 }
