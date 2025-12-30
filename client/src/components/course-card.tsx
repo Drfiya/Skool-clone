@@ -5,6 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import { getInitials, getDisplayName } from "@/lib/utils";
 import type { CourseWithDetails } from "@shared/schema";
 
 interface CourseCardProps {
@@ -15,18 +16,6 @@ interface CourseCardProps {
 }
 
 export function CourseCard({ course, isEnrolled, onEnroll, isEnrolling }: CourseCardProps) {
-  const getInitials = () => {
-    const first = course.instructor.firstName?.[0] || "";
-    const last = course.instructor.lastName?.[0] || "";
-    return (first + last).toUpperCase() || "?";
-  };
-
-  const getInstructorName = () => {
-    if (course.instructor.firstName || course.instructor.lastName) {
-      return `${course.instructor.firstName || ""} ${course.instructor.lastName || ""}`.trim();
-    }
-    return "Instructor";
-  };
 
   return (
     <Card className="overflow-hidden flex flex-col" data-testid={`card-course-${course.id}`}>
@@ -56,11 +45,11 @@ export function CourseCard({ course, isEnrolled, onEnroll, isEnrolling }: Course
       <CardContent className="pb-3 flex-1">
         <div className="flex items-center gap-2 mb-3">
           <Avatar className="h-6 w-6">
-            <AvatarImage src={course.instructor.profileImageUrl || undefined} alt={getInstructorName()} />
-            <AvatarFallback className="text-xs">{getInitials()}</AvatarFallback>
+            <AvatarImage src={course.instructor.profileImageUrl || undefined} alt={getDisplayName(course.instructor, "Instructor")} />
+            <AvatarFallback className="text-xs">{getInitials(course.instructor)}</AvatarFallback>
           </Avatar>
           <span className="text-sm text-muted-foreground" data-testid={`text-course-instructor-${course.id}`}>
-            {getInstructorName()}
+            {getDisplayName(course.instructor, "Instructor")}
           </span>
         </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">

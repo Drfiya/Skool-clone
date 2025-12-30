@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/auth-utils";
+import { getInitials, getDisplayName } from "@/lib/utils";
 import type { CommentWithReplyCount } from "@shared/schema";
 
 interface CommentSectionProps {
@@ -73,25 +74,6 @@ function CommentItem({
     enabled: isRepliesExpanded && comment.replyCount > 0,
   });
 
-  const getInitials = () => {
-    const first = comment.author.firstName?.[0] || "";
-    const last = comment.author.lastName?.[0] || "";
-    return (first + last).toUpperCase() || "?";
-  };
-
-  const getAuthorName = () => {
-    if (comment.author.firstName || comment.author.lastName) {
-      return `${comment.author.firstName || ""} ${comment.author.lastName || ""}`.trim();
-    }
-    return "Anonymous";
-  };
-
-  const getCurrentUserInitials = () => {
-    if (!user) return "?";
-    const first = user.firstName?.[0] || "";
-    const last = user.lastName?.[0] || "";
-    return (first + last).toUpperCase() || user.email?.[0]?.toUpperCase() || "?";
-  };
 
   const isOwner = currentUserId === comment.author.id;
 
@@ -197,14 +179,14 @@ function CommentItem({
     >
       <div className="flex gap-3">
         <Avatar className="h-8 w-8 flex-shrink-0">
-          <AvatarImage src={comment.author.profileImageUrl || undefined} alt={getAuthorName()} />
-          <AvatarFallback className="text-xs">{getInitials()}</AvatarFallback>
+          <AvatarImage src={comment.author.profileImageUrl || undefined} alt={getDisplayName(comment.author, "Anonymous")} />
+          <AvatarFallback className="text-xs">{getInitials(comment.author)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <span className="font-medium text-sm truncate" data-testid={`comment-author-${comment.id}`}>
-                {getAuthorName()}
+                {getDisplayName(comment.author, "Anonymous")}
               </span>
               <span className="text-xs text-muted-foreground flex-shrink-0">
                 {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
@@ -213,7 +195,7 @@ function CommentItem({
             {isOwner && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" data-testid={`comment-menu-${comment.id}`}>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" data-testid={`comment-menu-${comment.id}`} aria-label="Comment options">
                     <MoreHorizontal className="h-3 w-3" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -312,11 +294,11 @@ function CommentItem({
             <div className="mt-3 flex gap-2" data-testid={`reply-form-${comment.id}`}>
               <Avatar className="h-6 w-6 flex-shrink-0">
                 <AvatarImage src={user?.profileImageUrl || undefined} />
-                <AvatarFallback className="text-xs">{getCurrentUserInitials()}</AvatarFallback>
+                <AvatarFallback className="text-xs">{user ? getInitials(user) : "?"}</AvatarFallback>
               </Avatar>
               <div className="flex-1 flex flex-col gap-2">
                 <Textarea
-                  placeholder={`Reply to ${getAuthorName()}...`}
+                  placeholder={`Reply to ${getDisplayName(comment.author, "Anonymous")}...`}
                   value={replyContent}
                   onChange={(e) => setReplyContent(e.target.value)}
                   className="min-h-[60px] resize-none text-sm"
@@ -428,13 +410,6 @@ export function CommentSection({ postId }: CommentSectionProps) {
     }
   };
 
-  const getCurrentUserInitials = () => {
-    if (!user) return "?";
-    const first = user.firstName?.[0] || "";
-    const last = user.lastName?.[0] || "";
-    return (first + last).toUpperCase() || user.email?.[0]?.toUpperCase() || "?";
-  };
-
   // Filter out replies (comments with parentId) to show only top-level comments
   const topLevelComments = comments?.filter((c) => !c.parentId) || [];
 
@@ -480,7 +455,7 @@ export function CommentSection({ postId }: CommentSectionProps) {
         <div className="flex gap-3">
           <Avatar className="h-8 w-8 flex-shrink-0">
             <AvatarImage src={user?.profileImageUrl || undefined} />
-            <AvatarFallback className="text-xs">{getCurrentUserInitials()}</AvatarFallback>
+            <AvatarFallback className="text-xs">{user ? getInitials(user) : "?"}</AvatarFallback>
           </Avatar>
           <div className="flex-1 flex gap-2">
             <Textarea
@@ -497,6 +472,7 @@ export function CommentSection({ postId }: CommentSectionProps) {
               size="icon"
               disabled={!newComment.trim() || !isAuthenticated || createCommentMutation.isPending}
               data-testid={`comment-submit-${postId}`}
+              aria-label="Submit comment"
             >
               <Send className="h-4 w-4" />
             </Button>

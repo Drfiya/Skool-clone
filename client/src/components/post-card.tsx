@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CommentSection } from "@/components/comment-section";
+import { getInitials, getDisplayName } from "@/lib/utils";
 import type { PostWithAuthor } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
 
@@ -34,19 +35,6 @@ export function PostCard({ post, currentUserId, onLike, onComment, onShare, onEd
     onComment?.(post.id);
   };
 
-  const getInitials = () => {
-    const first = post.author.firstName?.[0] || "";
-    const last = post.author.lastName?.[0] || "";
-    return (first + last).toUpperCase() || "?";
-  };
-
-  const getAuthorName = () => {
-    if (post.author.firstName || post.author.lastName) {
-      return `${post.author.firstName || ""} ${post.author.lastName || ""}`.trim();
-    }
-    return "Anonymous";
-  };
-
   const getCategoryColor = () => {
     switch (post.category) {
       case "announcement":
@@ -63,13 +51,13 @@ export function PostCard({ post, currentUserId, onLike, onComment, onShare, onEd
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-3">
         <div className="flex items-start gap-3">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={post.author.profileImageUrl || undefined} alt={getAuthorName()} />
-            <AvatarFallback>{getInitials()}</AvatarFallback>
+            <AvatarImage src={post.author.profileImageUrl || undefined} alt={getDisplayName(post.author, "Anonymous")} />
+            <AvatarFallback>{getInitials(post.author)}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium text-sm" data-testid={`text-post-author-${post.id}`}>
-                {getAuthorName()}
+                {getDisplayName(post.author, "Anonymous")}
               </span>
               {post.isPinned && (
                 <Badge variant="secondary" className="gap-1">
@@ -91,7 +79,7 @@ export function PostCard({ post, currentUserId, onLike, onComment, onShare, onEd
         {isAuthor && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" data-testid={`button-post-menu-${post.id}`}>
+              <Button variant="ghost" size="icon" data-testid={`button-post-menu-${post.id}`} aria-label="Post options">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>

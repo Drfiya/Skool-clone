@@ -48,7 +48,7 @@ export default function CalendarPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      toast({ title: "Success", description: "RSVP updated" });
+      toast({ title: "Success", description: "RSVP updated", variant: "success" });
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -112,6 +112,7 @@ export default function CalendarPage() {
                       size="icon"
                       onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
                       data-testid="button-prev-month"
+                      aria-label="Previous month"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
@@ -120,6 +121,7 @@ export default function CalendarPage() {
                       size="icon"
                       onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
                       data-testid="button-next-month"
+                      aria-label="Next month"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>

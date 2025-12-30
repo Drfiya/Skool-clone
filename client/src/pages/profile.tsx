@@ -13,6 +13,7 @@ import { PostCard, PostCardSkeleton } from "@/components/post-card";
 import { CourseCard, CourseCardSkeleton } from "@/components/course-card";
 import { ProfileEditor } from "@/components/profile-editor";
 import { useAuth } from "@/hooks/use-auth";
+import { getInitials, getDisplayName } from "@/lib/utils";
 import type { MemberWithProfile, PostWithAuthor, CourseWithDetails } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -39,19 +40,6 @@ export default function ProfilePage() {
     queryKey: ["/api/enrollments/my/details"],
     enabled: isOwnProfile && !!user?.id,
   });
-
-  const getInitials = () => {
-    const first = member?.firstName?.[0] || "";
-    const last = member?.lastName?.[0] || "";
-    return (first + last).toUpperCase() || member?.email?.[0]?.toUpperCase() || "?";
-  };
-
-  const getDisplayName = () => {
-    if (member?.firstName || member?.lastName) {
-      return `${member?.firstName || ""} ${member?.lastName || ""}`.trim();
-    }
-    return member?.email || "Member";
-  };
 
   if (memberLoading) {
     return (
@@ -106,13 +94,13 @@ export default function ProfilePage() {
             <CardContent className="pt-0">
               <div className="flex flex-col sm:flex-row gap-4 -mt-12">
                 <Avatar className="h-24 w-24 border-4 border-background">
-                  <AvatarImage src={member.profileImageUrl || undefined} alt={getDisplayName()} />
-                  <AvatarFallback className="text-2xl">{getInitials()}</AvatarFallback>
+                  <AvatarImage src={member.profileImageUrl || undefined} alt={getDisplayName(member)} />
+                  <AvatarFallback className="text-2xl">{getInitials(member)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 pt-2 sm:pt-0 sm:mt-14">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h1 className="text-2xl font-bold" data-testid="text-profile-name">{getDisplayName()}</h1>
+                      <h1 className="text-2xl font-bold" data-testid="text-profile-name">{getDisplayName(member)}</h1>
                       {member.profile?.role && member.profile.role !== "member" && (
                         <Badge variant="secondary">{member.profile.role}</Badge>
                       )}

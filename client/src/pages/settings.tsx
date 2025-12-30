@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { TopBar } from "@/components/top-bar";
 import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
+import { getDisplayName } from "@/lib/utils";
 
 const NOTIFICATION_STORAGE_KEY = "skool-notification-preferences";
 
@@ -54,13 +55,6 @@ export default function SettingsPage() {
 
   const updateNotification = (key: keyof NotificationPreferences, value: boolean) => {
     setNotifications((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const getDisplayName = () => {
-    if (user?.firstName || user?.lastName) {
-      return `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
-    }
-    return user?.email || "User";
   };
 
   return (
@@ -158,7 +152,7 @@ export default function SettingsPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-1">
                   <Label className="text-sm text-muted-foreground">Display Name</Label>
-                  <p className="text-sm font-medium" data-testid="text-display-name">{getDisplayName()}</p>
+                  <p className="text-sm font-medium" data-testid="text-display-name">{user ? getDisplayName(user, "User") : "User"}</p>
                 </div>
                 <Separator />
                 <div className="space-y-1">

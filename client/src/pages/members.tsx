@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, LayoutGrid, List } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MemberCard, MemberCardSkeleton } from "@/components/member-card";
+import { LoadMore } from "@/components/load-more";
 import { TopBar } from "@/components/top-bar";
 import type { MemberWithProfile } from "@shared/schema";
 
@@ -21,11 +22,41 @@ interface PaginatedResponse<T> {
 export default function MembersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [allMembers, setAllMembers] = useState<MemberWithProfile[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const { data: membersResponse, isLoading } = useQuery<PaginatedResponse<MemberWithProfile>>({
-    queryKey: ["/api/members"],
+  const LIMIT = 20;
+
+  const { data: membersResponse, isLoading, isFetching } = useQuery<PaginatedResponse<MemberWithProfile>>({
+    queryKey: ["/api/members", { limit: LIMIT, offset }],
   });
-  const members = membersResponse?.data;
+
+  // Update allMembers when new data arrives
+  useEffect(() => {
+    if (membersResponse?.data) {
+      if (offset === 0) {
+        setAllMembers(membersResponse.data);
+      } else {
+        setAllMembers((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id));
+          const newMembers = membersResponse.data.filter((m) => !existingIds.has(m.id));
+          return [...prev, ...newMembers];
+        });
+      }
+      setHasMore(membersResponse.pagination.hasMore);
+      setTotalCount(membersResponse.pagination.total);
+    }
+  }, [membersResponse, offset]);
+
+  const loadMore = useCallback(() => {
+    if (!isFetching && hasMore) {
+      setOffset((prev) => prev + LIMIT);
+    }
+  }, [isFetching, hasMore]);
+
+  const members = allMembers;
 
   const filteredMembers = members?.filter((member) => {
     if (!searchQuery) return true;
@@ -44,7 +75,7 @@ export default function MembersPage() {
             <div>
               <h1 className="text-2xl font-bold" data-testid="text-page-title">Members</h1>
               <p className="text-muted-foreground">
-                {membersResponse?.pagination.total || 0} members in this community
+                {totalCount} members in this community
               </p>
             </div>
           </div>
@@ -66,6 +97,7 @@ export default function MembersPage() {
                 size="icon"
                 onClick={() => setViewMode("grid")}
                 data-testid="button-grid-view"
+                aria-label="Grid view"
               >
                 <LayoutGrid className="h-4 w-4" />
               </Button>
@@ -74,15 +106,16 @@ export default function MembersPage() {
                 size="icon"
                 onClick={() => setViewMode("list")}
                 data-testid="button-list-view"
+                aria-label="List view"
               >
                 <List className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
-          {isLoading ? (
-            <div className={viewMode === "grid" 
-              ? "grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4" 
+          {isLoading && members.length === 0 ? (
+            <div className={viewMode === "grid"
+              ? "grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
               : "grid gap-4 sm:grid-cols-2"
             }>
               {[...Array(8)].map((_, i) => (
@@ -90,14 +123,23 @@ export default function MembersPage() {
               ))}
             </div>
           ) : filteredMembers && filteredMembers.length > 0 ? (
-            <div className={viewMode === "grid" 
-              ? "grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4" 
-              : "grid gap-4 sm:grid-cols-2"
-            }>
-              {filteredMembers.map((member) => (
-                <MemberCard key={member.id} member={member} />
-              ))}
-            </div>
+            <>
+              <div className={viewMode === "grid"
+                ? "grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+                : "grid gap-4 sm:grid-cols-2"
+              }>
+                {filteredMembers.map((member) => (
+                  <MemberCard key={member.id} member={member} />
+                ))}
+              </div>
+              {!searchQuery && (
+                <LoadMore
+                  hasMore={hasMore}
+                  isLoading={isFetching && members.length > 0}
+                  onLoadMore={loadMore}
+                />
+              )}
+            </>
           ) : (
             <div className="text-center py-16 text-muted-foreground">
               <p className="text-lg mb-2">No members found</p>

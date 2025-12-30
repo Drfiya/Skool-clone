@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/auth-utils";
+import { getInitials, getDisplayName } from "@/lib/utils";
 import type { CourseWithDetails, CourseModule, Lesson, LessonProgress } from "@shared/schema";
 
 // Type for module with lessons
@@ -79,21 +80,6 @@ export default function CourseDetailPage() {
       toast({ title: "Error", description: "Failed to enroll", variant: "destructive" });
     },
   });
-
-  const getInitials = () => {
-    if (!course) return "?";
-    const first = course.instructor.firstName?.[0] || "";
-    const last = course.instructor.lastName?.[0] || "";
-    return (first + last).toUpperCase() || "?";
-  };
-
-  const getInstructorName = () => {
-    if (!course) return "Instructor";
-    if (course.instructor.firstName || course.instructor.lastName) {
-      return `${course.instructor.firstName || ""} ${course.instructor.lastName || ""}`.trim();
-    }
-    return "Instructor";
-  };
 
   const isLessonCompleted = (lessonId: string): boolean => {
     return lessonProgressData?.[lessonId] || false;
@@ -175,8 +161,6 @@ export default function CourseDetailPage() {
                   isEnrolled={isEnrolled}
                   isEnrolling={enrollMutation.isPending}
                   onEnroll={() => enrollMutation.mutate(course.id)}
-                  getInitials={getInitials}
-                  getInstructorName={getInstructorName}
                 />
               </div>
 
@@ -256,8 +240,6 @@ export default function CourseDetailPage() {
                   isEnrolled={isEnrolled}
                   isEnrolling={enrollMutation.isPending}
                   onEnroll={() => enrollMutation.mutate(course.id)}
-                  getInitials={getInitials}
-                  getInstructorName={getInstructorName}
                 />
               </div>
             </div>
@@ -281,11 +263,9 @@ interface CourseInfoCardProps {
   isEnrolled?: boolean;
   isEnrolling: boolean;
   onEnroll: () => void;
-  getInitials: () => string;
-  getInstructorName: () => string;
 }
 
-function CourseInfoCard({ course, isEnrolled, isEnrolling, onEnroll, getInitials, getInstructorName }: CourseInfoCardProps) {
+function CourseInfoCard({ course, isEnrolled, isEnrolling, onEnroll }: CourseInfoCardProps) {
   return (
     <Card className="overflow-hidden" data-testid="card-course-info">
       {/* Thumbnail */}
@@ -320,11 +300,11 @@ function CourseInfoCard({ course, isEnrolled, isEnrolling, onEnroll, getInitials
         {/* Instructor */}
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={course.instructor.profileImageUrl || undefined} alt={getInstructorName()} />
-            <AvatarFallback>{getInitials()}</AvatarFallback>
+            <AvatarImage src={course.instructor.profileImageUrl || undefined} alt={getDisplayName(course.instructor, "Instructor")} />
+            <AvatarFallback>{getInitials(course.instructor)}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="text-sm font-medium">{getInstructorName()}</p>
+            <p className="text-sm font-medium">{getDisplayName(course.instructor, "Instructor")}</p>
             <p className="text-xs text-muted-foreground">Instructor</p>
           </div>
         </div>

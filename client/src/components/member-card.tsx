@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getInitials, getDisplayName } from "@/lib/utils";
 import type { MemberWithProfile } from "@shared/schema";
 
 interface MemberCardProps {
@@ -11,18 +12,6 @@ interface MemberCardProps {
 }
 
 export function MemberCard({ member }: MemberCardProps) {
-  const getInitials = () => {
-    const first = member.firstName?.[0] || "";
-    const last = member.lastName?.[0] || "";
-    return (first + last).toUpperCase() || member.email?.[0]?.toUpperCase() || "?";
-  };
-
-  const getDisplayName = () => {
-    if (member.firstName || member.lastName) {
-      return `${member.firstName || ""} ${member.lastName || ""}`.trim();
-    }
-    return member.email || "Member";
-  };
 
   const getRoleBadgeVariant = () => {
     if (!member.profile?.role) return null;
@@ -41,14 +30,14 @@ export function MemberCard({ member }: MemberCardProps) {
       <CardContent className="pt-6 text-center">
         <Link href={`/members/${member.id}`}>
           <Avatar className="h-16 w-16 mx-auto mb-3 hover:ring-2 hover:ring-primary/50 transition-all">
-            <AvatarImage src={member.profileImageUrl || undefined} alt={getDisplayName()} />
-            <AvatarFallback className="text-lg">{getInitials()}</AvatarFallback>
+            <AvatarImage src={member.profileImageUrl || undefined} alt={getDisplayName(member)} />
+            <AvatarFallback className="text-lg">{getInitials(member)}</AvatarFallback>
           </Avatar>
         </Link>
         <div className="mb-2">
           <Link href={`/members/${member.id}`}>
             <h3 className="font-medium text-sm hover:text-primary transition-colors" data-testid={`text-member-name-${member.id}`}>
-              {getDisplayName()}
+              {getDisplayName(member)}
             </h3>
           </Link>
           {getRoleBadgeVariant() && (

@@ -1,9 +1,9 @@
 import { Link, useLocation } from "wouter";
-import { 
-  Home, 
-  BookOpen, 
-  Users, 
-  Calendar, 
+import {
+  Home,
+  BookOpen,
+  Users,
+  Calendar,
   Trophy,
   User,
   LogOut,
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
+import { getInitials, getDisplayName } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,21 +44,6 @@ const mainNavItems = [
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
-
-  const getInitials = () => {
-    if (!user) return "?";
-    const first = user.firstName?.[0] || "";
-    const last = user.lastName?.[0] || "";
-    return (first + last).toUpperCase() || user.email?.[0]?.toUpperCase() || "?";
-  };
-
-  const getDisplayName = () => {
-    if (!user) return "Guest";
-    if (user.firstName || user.lastName) {
-      return `${user.firstName || ""} ${user.lastName || ""}`.trim();
-    }
-    return user.email || "User";
-  };
 
   return (
     <Sidebar>
@@ -99,16 +85,16 @@ export function AppSidebar() {
         {user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button 
+              <button
                 className="flex w-full items-center gap-3 rounded-md p-2 text-left hover-elevate active-elevate-2"
                 data-testid="button-user-menu"
               >
                 <Avatar className="h-9 w-9">
-                  <AvatarImage src={user.profileImageUrl || undefined} alt={getDisplayName()} />
-                  <AvatarFallback>{getInitials()}</AvatarFallback>
+                  <AvatarImage src={user.profileImageUrl || undefined} alt={getDisplayName(user, "User")} />
+                  <AvatarFallback>{getInitials(user)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 overflow-hidden">
-                  <p className="truncate text-sm font-medium" data-testid="text-user-name">{getDisplayName()}</p>
+                  <p className="truncate text-sm font-medium" data-testid="text-user-name">{getDisplayName(user, "User")}</p>
                   <p className="truncate text-xs text-muted-foreground" data-testid="text-user-email">{user.email}</p>
                 </div>
               </button>

@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getInitials, getDisplayName } from "@/lib/utils";
 import type { MemberWithProfile } from "@shared/schema";
 
 interface LeaderboardTableProps {
@@ -30,19 +31,6 @@ export function LeaderboardTable({ members, title = "Leaderboard", showRank = tr
       default:
         return <span className="text-sm font-medium text-muted-foreground w-5 text-center">{rank}</span>;
     }
-  };
-
-  const getInitials = (member: MemberWithProfile) => {
-    const first = member.firstName?.[0] || "";
-    const last = member.lastName?.[0] || "";
-    return (first + last).toUpperCase() || member.email?.[0]?.toUpperCase() || "?";
-  };
-
-  const getDisplayName = (member: MemberWithProfile) => {
-    if (member.firstName || member.lastName) {
-      return `${member.firstName || ""} ${member.lastName || ""}`.trim();
-    }
-    return member.email || "Member";
   };
 
   return (

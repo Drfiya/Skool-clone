@@ -801,6 +801,7 @@ export function CourseEditor({ open, onOpenChange, courseId, onSuccess }: Course
                                       variant="ghost"
                                       onClick={() => handleMoveModule(module.id, "up")}
                                       disabled={moduleIndex === 0 || reorderModulesMutation.isPending}
+                                      aria-label="Move module up"
                                     >
                                       <ChevronUp className="h-4 w-4" />
                                     </Button>
@@ -809,6 +810,7 @@ export function CourseEditor({ open, onOpenChange, courseId, onSuccess }: Course
                                       variant="ghost"
                                       onClick={() => handleMoveModule(module.id, "down")}
                                       disabled={moduleIndex === modules.length - 1 || reorderModulesMutation.isPending}
+                                      aria-label="Move module down"
                                     >
                                       <ChevronDown className="h-4 w-4" />
                                     </Button>
@@ -818,6 +820,7 @@ export function CourseEditor({ open, onOpenChange, courseId, onSuccess }: Course
                                       className="text-destructive hover:text-destructive"
                                       onClick={() => setDeleteConfirm({ type: "module", id: module.id, title: module.title })}
                                       data-testid={`button-delete-module-${module.id}`}
+                                      aria-label="Delete module"
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
@@ -1040,6 +1043,7 @@ export function CourseEditor({ open, onOpenChange, courseId, onSuccess }: Course
                                             className="h-8 w-8"
                                             onClick={() => handleMoveLesson(module.id, lesson.id, "up")}
                                             disabled={lessonIndex === 0 || reorderLessonsMutation.isPending}
+                                            aria-label="Move lesson up"
                                           >
                                             <ChevronUp className="h-4 w-4" />
                                           </Button>
@@ -1049,6 +1053,7 @@ export function CourseEditor({ open, onOpenChange, courseId, onSuccess }: Course
                                             className="h-8 w-8"
                                             onClick={() => handleMoveLesson(module.id, lesson.id, "down")}
                                             disabled={lessonIndex === module.lessons.length - 1 || reorderLessonsMutation.isPending}
+                                            aria-label="Move lesson down"
                                           >
                                             <ChevronDown className="h-4 w-4" />
                                           </Button>
@@ -1058,6 +1063,7 @@ export function CourseEditor({ open, onOpenChange, courseId, onSuccess }: Course
                                             className="h-8 w-8 text-destructive hover:text-destructive"
                                             onClick={() => setDeleteConfirm({ type: "lesson", id: lesson.id, title: lesson.title })}
                                             data-testid={`button-delete-lesson-${lesson.id}`}
+                                            aria-label="Delete lesson"
                                           >
                                             <Trash2 className="h-4 w-4" />
                                           </Button>

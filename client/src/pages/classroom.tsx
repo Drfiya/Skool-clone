@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Plus, Search } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CourseCard, CourseCardSkeleton } from "@/components/course-card";
 import { CourseEditor } from "@/components/course-editor";
+import { LoadMore } from "@/components/load-more";
 import { TopBar } from "@/components/top-bar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -28,13 +29,41 @@ export default function ClassroomPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [courseEditorOpen, setCourseEditorOpen] = useState(false);
+  const [allCourses, setAllCourses] = useState<CourseWithDetails[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const { toast } = useToast();
   const { isAuthenticated } = useAuth();
 
-  const { data: coursesResponse, isLoading } = useQuery<PaginatedResponse<CourseWithDetails>>({
-    queryKey: ["/api/courses"],
+  const LIMIT = 20;
+
+  const { data: coursesResponse, isLoading, isFetching } = useQuery<PaginatedResponse<CourseWithDetails>>({
+    queryKey: ["/api/courses", { limit: LIMIT, offset }],
   });
-  const courses = coursesResponse?.data;
+
+  // Update allCourses when new data arrives
+  useEffect(() => {
+    if (coursesResponse?.data) {
+      if (offset === 0) {
+        setAllCourses(coursesResponse.data);
+      } else {
+        setAllCourses((prev) => {
+          const existingIds = new Set(prev.map((c) => c.id));
+          const newCourses = coursesResponse.data.filter((c) => !existingIds.has(c.id));
+          return [...prev, ...newCourses];
+        });
+      }
+      setHasMore(coursesResponse.pagination.hasMore);
+    }
+  }, [coursesResponse, offset]);
+
+  const loadMore = useCallback(() => {
+    if (!isFetching && hasMore) {
+      setOffset((prev) => prev + LIMIT);
+    }
+  }, [isFetching, hasMore]);
+
+  const courses = allCourses;
 
   const { data: enrolledCourseIds } = useQuery<string[]>({
     queryKey: ["/api/enrollments/my"],
@@ -48,7 +77,7 @@ export default function ClassroomPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
       queryClient.invalidateQueries({ queryKey: ["/api/enrollments/my"] });
-      toast({ title: "Success", description: "Enrolled successfully!" });
+      toast({ title: "Success", description: "Enrolled successfully!", variant: "success" });
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -113,7 +142,7 @@ export default function ClassroomPage() {
             </Tabs>
           </div>
 
-          {isLoading ? (
+          {isLoading && courses.length === 0 ? (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               <CourseCardSkeleton />
               <CourseCardSkeleton />
@@ -123,17 +152,26 @@ export default function ClassroomPage() {
               <CourseCardSkeleton />
             </div>
           ) : filteredCourses && filteredCourses.length > 0 ? (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredCourses.map((course) => (
-                <CourseCard
-                  key={course.id}
-                  course={course}
-                  isEnrolled={enrolledCourseIds?.includes(course.id)}
-                  onEnroll={(courseId) => enrollMutation.mutate(courseId)}
-                  isEnrolling={enrollMutation.isPending}
+            <>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredCourses.map((course) => (
+                  <CourseCard
+                    key={course.id}
+                    course={course}
+                    isEnrolled={enrolledCourseIds?.includes(course.id)}
+                    onEnroll={(courseId) => enrollMutation.mutate(courseId)}
+                    isEnrolling={enrollMutation.isPending}
+                  />
+                ))}
+              </div>
+              {!searchQuery && activeTab === "all" && (
+                <LoadMore
+                  hasMore={hasMore}
+                  isLoading={isFetching && courses.length > 0}
+                  onLoadMore={loadMore}
                 />
-              ))}
-            </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-16 text-muted-foreground">
               <p className="text-lg mb-2">No courses found</p>

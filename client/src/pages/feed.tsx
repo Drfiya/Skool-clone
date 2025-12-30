@@ -1,21 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { PostCard, PostCardSkeleton } from "@/components/post-card";
 import { PostComposer } from "@/components/post-composer";
 import { TopBar } from "@/components/top-bar";
 import { LeaderboardTable, LeaderboardTableSkeleton } from "@/components/leaderboard-table";
 import { EventCard, EventCardSkeleton } from "@/components/event-card";
+import { DeleteConfirmation } from "@/components/delete-confirmation";
+import { LoadMore } from "@/components/load-more";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -38,13 +30,41 @@ export default function FeedPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [editingPost, setEditingPost] = useState<PostWithAuthor | null>(null);
   const [deletingPost, setDeletingPost] = useState<PostWithAuthor | null>(null);
+  const [allPosts, setAllPosts] = useState<PostWithAuthor[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const { data: postsResponse, isLoading: postsLoading } = useQuery<PaginatedResponse<PostWithAuthor>>({
-    queryKey: ["/api/posts"],
+  const LIMIT = 20;
+
+  const { data: postsResponse, isLoading: postsLoading, isFetching } = useQuery<PaginatedResponse<PostWithAuthor>>({
+    queryKey: ["/api/posts", { limit: LIMIT, offset }],
   });
-  const posts = postsResponse?.data;
+
+  // Update allPosts when new data arrives
+  useEffect(() => {
+    if (postsResponse?.data) {
+      if (offset === 0) {
+        setAllPosts(postsResponse.data);
+      } else {
+        setAllPosts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const newPosts = postsResponse.data.filter((p) => !existingIds.has(p.id));
+          return [...prev, ...newPosts];
+        });
+      }
+      setHasMore(postsResponse.pagination.hasMore);
+    }
+  }, [postsResponse, offset]);
+
+  const loadMore = useCallback(() => {
+    if (!isFetching && hasMore) {
+      setOffset((prev) => prev + LIMIT);
+    }
+  }, [isFetching, hasMore]);
+
+  const posts = allPosts;
 
   const { data: leaderboard, isLoading: leaderboardLoading } = useQuery<MemberWithProfile[]>({
     queryKey: ["/api/leaderboard"],
@@ -54,14 +74,21 @@ export default function FeedPage() {
     queryKey: ["/api/events/upcoming"],
   });
 
+  const resetPagination = useCallback(() => {
+    setOffset(0);
+    setAllPosts([]);
+    setHasMore(true);
+  }, []);
+
   const createPostMutation = useMutation({
     mutationFn: async (data: { title?: string; content: string; category: string }) => {
       return apiRequest("POST", "/api/posts", data);
     },
     onSuccess: () => {
+      resetPagination();
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       setIsComposerOpen(false);
-      toast({ title: "Success", description: "Post created successfully" });
+      toast({ title: "Success", description: "Post created successfully", variant: "success" });
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -95,9 +122,10 @@ export default function FeedPage() {
       return apiRequest("PATCH", `/api/posts/${postId}`, data);
     },
     onSuccess: () => {
+      resetPagination();
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       setEditingPost(null);
-      toast({ title: "Success", description: "Post updated successfully" });
+      toast({ title: "Success", description: "Post updated successfully", variant: "success" });
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -114,9 +142,10 @@ export default function FeedPage() {
       return apiRequest("DELETE", `/api/posts/${postId}`);
     },
     onSuccess: () => {
+      resetPagination();
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       setDeletingPost(null);
-      toast({ title: "Success", description: "Post deleted successfully" });
+      toast({ title: "Success", description: "Post deleted successfully", variant: "success" });
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -170,24 +199,31 @@ export default function FeedPage() {
               </Tabs>
 
               <div className="space-y-4">
-                {postsLoading ? (
+                {postsLoading && posts.length === 0 ? (
                   <>
                     <PostCardSkeleton />
                     <PostCardSkeleton />
                     <PostCardSkeleton />
                   </>
                 ) : sortedPosts.length > 0 ? (
-                  sortedPosts.map((post) => (
-                    <PostCard
-                      key={post.id}
-                      post={post}
-                      currentUserId={user?.id}
-                      onLike={(postId) => likePostMutation.mutate(postId)}
-                      onEdit={handleEditPost}
-                      onDelete={handleDeletePost}
-                      isLiking={likePostMutation.isPending}
+                  <>
+                    {sortedPosts.map((post) => (
+                      <PostCard
+                        key={post.id}
+                        post={post}
+                        currentUserId={user?.id}
+                        onLike={(postId) => likePostMutation.mutate(postId)}
+                        onEdit={handleEditPost}
+                        onDelete={handleDeletePost}
+                        isLiking={likePostMutation.isPending}
+                      />
+                    ))}
+                    <LoadMore
+                      hasMore={hasMore}
+                      isLoading={isFetching && posts.length > 0}
+                      onLoadMore={loadMore}
                     />
-                  ))
+                  </>
                 ) : (
                   <div className="text-center py-12 text-muted-foreground">
                     <p className="text-lg mb-2">No posts yet</p>
@@ -260,26 +296,14 @@ export default function FeedPage() {
       />
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deletingPost} onOpenChange={(open) => !open && setDeletingPost(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Post?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this post? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid="button-confirm-delete-post"
-            >
-              {deletePostMutation.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmation
+        open={!!deletingPost}
+        onOpenChange={(open) => !open && setDeletingPost(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Post?"
+        description="Are you sure you want to delete this post? This action cannot be undone."
+        isDeleting={deletePostMutation.isPending}
+      />
     </div>
   );
 }
